@@ -421,7 +421,7 @@ function buildCalendar(){
       const chip = document.createElement('div');
       chip.className='cal-chip chip-'+ci.status;
       chip.onclick=()=>openContentModal(ci.id);
-      chip.innerHTML='<span class="dot"></span>'+ci.title;
+      chip.innerHTML='<span class="dot"></span>'+escHtml(ci.title);
       c.appendChild(chip);
     });
     grid.appendChild(c);

@@ -1,4 +1,13 @@
 /* ===================== SECURITY ===================== */
+/* clickjacking protection */
+(function(){
+  if(window.top !== window.self){
+    try{ window.top.location = window.self.location; }catch(e){ document.body.style.display='none'; }
+  }
+})();
+/* safe URL validators */
+function isSafeDataUrl(s){ return typeof s === 'string' && /^data:image\/(png|jpeg|jpg|gif|webp|svg\+xml);base64,/i.test(s); }
+function isSafeHttpUrl(s){ return typeof s === 'string' && /^https?:\/\//i.test(s); }
 /* client-side login rate limiter */
 const PORTAL_AUTH_FAIL_KEY = 'favze_portal_auth_fails';
 const PORTAL_AUTH_LOCK_KEY = 'favze_portal_auth_lock';
@@ -485,7 +494,7 @@ function openContentModal(id){
   document.getElementById('cd-desc').textContent = ci.desc;
   const media = document.getElementById('cd-media');
   if(ci.imageUrls && ci.imageUrls.length){
-    media.innerHTML = `<div class="review-carousel">${ci.imageUrls.map(u=>`<img src="${u}" onclick="window.open('${u}','_blank')" alt="Content photo">`).join('')}</div>`;
+    media.innerHTML = `<div class="review-carousel">${ci.imageUrls.filter(u=>isSafeHttpUrl(u)||isSafeDataUrl(u)).map(u=>`<img src="${u}" onclick="window.open('${u}','_blank','noopener,noreferrer')" alt="Content photo">`).join('')}</div>`;
   } else {
     media.innerHTML = `<div class="review-media-empty">No photos attached to this item yet.</div>`;
   }

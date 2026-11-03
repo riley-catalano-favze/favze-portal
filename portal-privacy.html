@@ -231,6 +231,16 @@
             </div>
 
             <div>
+              <p style="font-size:13px;font-weight:700;color:var(--navy-deep,#064187);margin:0 0 4px;">Clickjacking is mitigated but not fully blocked</p>
+              <p style="font-size:13px;color:var(--ink,#1a2535);line-height:1.6;margin:0;">The portal now includes a JavaScript framebusting snippet that breaks out of any iframe or hides the page if it detects it is being framed. Because GitHub Pages does not support custom HTTP headers, the <code style="font-family:'JetBrains Mono',monospace;font-size:12px;background:var(--off-white,#f3f6fb);padding:1px 5px;border-radius:4px;">X-Frame-Options</code> and <code style="font-family:'JetBrains Mono',monospace;font-size:12px;background:var(--off-white,#f3f6fb);padding:1px 5px;border-radius:4px;">frame-ancestors</code> CSP controls are unavailable. A determined attacker can bypass JS framebusting. A server that sends proper response headers would close this fully.</p>
+            </div>
+
+            <div>
+              <p style="font-size:13px;font-weight:700;color:var(--navy-deep,#064187);margin:0 0 4px;">External media links use noopener/noreferrer</p>
+              <p style="font-size:13px;color:var(--ink,#1a2535);line-height:1.6;margin:0;">Images and media that open in a new tab now include <code style="font-family:'JetBrains Mono',monospace;font-size:12px;background:var(--off-white,#f3f6fb);padding:1px 5px;border-radius:4px;">rel="noopener noreferrer"</code>, preventing any opened page from accessing or redirecting the portal window via <code style="font-family:'JetBrains Mono',monospace;font-size:12px;background:var(--off-white,#f3f6fb);padding:1px 5px;border-radius:4px;">window.opener</code>. Image URLs are validated to require an <code style="font-family:'JetBrains Mono',monospace;font-size:12px;background:var(--off-white,#f3f6fb);padding:1px 5px;border-radius:4px;">https://</code> scheme or a safe image data URI before rendering.</p>
+            </div>
+
+            <div>
               <p style="font-size:13px;font-weight:700;color:var(--navy-deep,#064187);margin:0 0 4px;">Portal source code is publicly readable</p>
               <p style="font-size:13px;color:var(--ink,#1a2535);line-height:1.6;margin:0;">Because the portal is hosted on GitHub Pages, the full JavaScript source is publicly accessible. Anyone can read <code style="font-family:monospace;font-size:12px;background:rgba(6,65,135,.06);padding:1px 5px;border-radius:4px;">portal-app.js</code> to understand the application's structure, how authentication is handled, and which Supabase project backs it. The publishable API key visible in the source is intentionally low-privilege and row-level-security gated -- but the full application map is not secret.</p>
             </div>

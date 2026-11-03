@@ -206,8 +206,8 @@
 
           <div style="display:flex;flex-direction:column;gap:14px;">
             <div>
-              <p style="font-size:13px;font-weight:700;color:var(--navy-deep,#064187);margin:0 0 4px;">Session tokens are stored in browser memory, not a secure cookie</p>
-              <p style="font-size:13px;color:var(--ink,#1a2535);line-height:1.6;margin:0;">Supabase session tokens are held in memory for the duration of your browser tab. Anyone who can access your open browser tab (shared computer, unlocked screen) can act as you in the portal without re-entering credentials.</p>
+              <p style="font-size:13px;font-weight:700;color:var(--navy-deep,#064187);margin:0 0 4px;">Sessions auto sign out after 30 minutes of inactivity</p>
+              <p style="font-size:13px;color:var(--ink,#1a2535);line-height:1.6;margin:0;">The portal now signs you out automatically after 30 minutes without activity. Supabase session tokens are still held in browser memory for the duration of an active session -- anyone with access to your open browser tab can act as you until the idle timeout fires or you sign out manually. Do not leave the portal open on a shared screen.</p>
             </div>
 
             <div>
@@ -216,8 +216,8 @@
             </div>
 
             <div>
-              <p style="font-size:13px;font-weight:700;color:var(--navy-deep,#064187);margin:0 0 4px;">No brute-force protection on sign-in</p>
-              <p style="font-size:13px;color:var(--ink,#1a2535);line-height:1.6;margin:0;">Supabase does not rate-limit login attempts by default. An attacker who knows your email address can attempt unlimited passwords without being locked out. We are working to enable login rate limits and leaked password detection in our Supabase configuration.</p>
+              <p style="font-size:13px;font-weight:700;color:var(--navy-deep,#064187);margin:0 0 4px;">Limited brute-force protection on sign-in</p>
+              <p style="font-size:13px;color:var(--ink,#1a2535);line-height:1.6;margin:0;">The sign-in screen locks your email for 5 minutes after 5 failed attempts in the same browser session. This is a client-side control only -- it does not block attempts from other devices or direct API calls. We are working to enable server-side rate limiting in our Supabase configuration to close this fully.</p>
             </div>
 
             <div>

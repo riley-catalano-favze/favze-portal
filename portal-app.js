@@ -1,3 +1,53 @@
+/* ===================== SECURITY ===================== */
+/* client-side login rate limiter */
+const PORTAL_AUTH_FAIL_KEY = 'favze_portal_auth_fails';
+const PORTAL_AUTH_LOCK_KEY = 'favze_portal_auth_lock';
+const PORTAL_AUTH_MAX_FAILS = 5;
+const PORTAL_AUTH_LOCK_MS   = 5 * 60 * 1000;
+function portalAuthRecordFail(email){
+  let fails = {};
+  try{ fails = JSON.parse(sessionStorage.getItem(PORTAL_AUTH_FAIL_KEY)||'{}'); }catch(e){}
+  fails[email] = (fails[email]||0) + 1;
+  try{ sessionStorage.setItem(PORTAL_AUTH_FAIL_KEY, JSON.stringify(fails)); }catch(e){}
+  if(fails[email] >= PORTAL_AUTH_MAX_FAILS){
+    try{ sessionStorage.setItem(PORTAL_AUTH_LOCK_KEY+'_'+email, String(Date.now()+PORTAL_AUTH_LOCK_MS)); }catch(e){}
+  }
+  return fails[email];
+}
+function portalAuthClearFails(email){
+  try{
+    const fails = JSON.parse(sessionStorage.getItem(PORTAL_AUTH_FAIL_KEY)||'{}');
+    delete fails[email];
+    sessionStorage.setItem(PORTAL_AUTH_FAIL_KEY, JSON.stringify(fails));
+    sessionStorage.removeItem(PORTAL_AUTH_LOCK_KEY+'_'+email);
+  }catch(e){}
+}
+function portalAuthIsLocked(email){
+  try{
+    const until = Number(sessionStorage.getItem(PORTAL_AUTH_LOCK_KEY+'_'+email)||'0');
+    if(!until) return false;
+    if(Date.now() < until) return Math.ceil((until-Date.now())/1000);
+    sessionStorage.removeItem(PORTAL_AUTH_LOCK_KEY+'_'+email);
+    return false;
+  }catch(e){ return false; }
+}
+/* idle session timeout (30 minutes) */
+const PORTAL_IDLE_MS = 30 * 60 * 1000;
+let _portalIdleTimer = null;
+function _resetPortalIdle(){
+  clearTimeout(_portalIdleTimer);
+  _portalIdleTimer = setTimeout(()=>{
+    if(typeof portalSignOut==='function' && typeof CLIENT_ID!=='undefined' && CLIENT_ID){
+      portalSignOut();
+      const errEl = document.getElementById('login-error');
+      if(errEl){ errEl.textContent='Signed out after 30 minutes of inactivity.'; errEl.style.display='block'; }
+    }
+  }, PORTAL_IDLE_MS);
+}
+['click','keydown','mousemove','touchstart','scroll'].forEach(evt=>{
+  document.addEventListener(evt, _resetPortalIdle, { passive: true });
+});
+
 /* ===================== NAV ===================== */
 const titles = {
   dashboard:['Dashboard','Here is where things stand today.'],
@@ -109,12 +159,24 @@ async function portalSignIn(){
   document.getElementById('login-error').style.display = 'none';
   document.getElementById('login-success').style.display = 'none';
   if(!email || !password){ showLoginError('Enter both your email and password.'); return; }
+  const locked = portalAuthIsLocked(email);
+  if(locked){ showLoginError(`Too many failed attempts. Try again in ${locked} seconds.`); return; }
   const client = getSupabaseClient();
   if(!client){ showLoginError('Could not reach the login service. Check your connection and try again.'); return; }
   btn.textContent = 'Signing in…'; btn.disabled = true;
   try{
     const { data, error } = await client.auth.signInWithPassword({ email, password });
-    if(error){ showLoginError('That email and password combination was not recognized.'); return; }
+    if(error){
+      const fails = portalAuthRecordFail(email);
+      const remaining = PORTAL_AUTH_MAX_FAILS - fails;
+      if(remaining <= 0){
+        showLoginError('Too many failed attempts. Sign-in is locked for 5 minutes.');
+      } else {
+        showLoginError(`That email and password combination was not recognized.${remaining <= 2 ? ` ${remaining} attempt${remaining===1?'':'s'} remaining before lockout.` : ''}`);
+      }
+      return;
+    }
+    portalAuthClearFails(email);
     await onSignedIn(data.session);
   }catch(err){
     console.error(err);
@@ -130,7 +192,7 @@ async function portalSignUp(){
   document.getElementById('login-error').style.display = 'none';
   document.getElementById('login-success').style.display = 'none';
   if(!email || !password){ showLoginError('Enter both an email and a password.'); return; }
-  if(password.length < 6){ showLoginError('Use a password with at least 6 characters.'); return; }
+  if(password.length < 12){ showLoginError('Use a password with at least 12 characters.'); return; }
   const client = getSupabaseClient();
   if(!client){ showLoginError('Could not reach the login service. Check your connection and try again.'); return; }
   btn.textContent = 'Creating account…'; btn.disabled = true;

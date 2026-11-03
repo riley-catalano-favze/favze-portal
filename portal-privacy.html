@@ -200,6 +200,45 @@
           <p style="font-size:13.5px;color:var(--ink,#1a2535);line-height:1.65;margin:0;">You can request to view, correct, or delete your personal data at any time. Contact your Favze account manager or email riley@favze.com. We will respond within a reasonable timeframe.</p>
         </div>
 
+        <div class="card" style="padding:22px;border-left:3px solid #c9302c;">
+          <h2 style="font-family:'Barlow Condensed',sans-serif;font-weight:900;font-size:19px;color:#c9302c;margin:0 0 10px;">Known Security Limitations</h2>
+          <p style="font-size:13.5px;color:var(--ink,#1a2535);line-height:1.65;margin:0 0 16px;">These are real gaps in the current implementation. We document them so clients know the honest risk posture of this portal.</p>
+
+          <div style="display:flex;flex-direction:column;gap:14px;">
+            <div>
+              <p style="font-size:13px;font-weight:700;color:var(--navy-deep,#064187);margin:0 0 4px;">Session tokens are stored in browser memory, not a secure cookie</p>
+              <p style="font-size:13px;color:var(--ink,#1a2535);line-height:1.6;margin:0;">Supabase session tokens are held in memory for the duration of your browser tab. Anyone who can access your open browser tab (shared computer, unlocked screen) can act as you in the portal without re-entering credentials.</p>
+            </div>
+
+            <div>
+              <p style="font-size:13px;font-weight:700;color:var(--navy-deep,#064187);margin:0 0 4px;">No multi-factor authentication</p>
+              <p style="font-size:13px;color:var(--ink,#1a2535);line-height:1.6;margin:0;">Portal sign-in requires only email and password. If your password is guessed or reused from another breach, there is no second factor to stop unauthorized access. Use a strong, unique password and change it if you have any reason to suspect it was exposed.</p>
+            </div>
+
+            <div>
+              <p style="font-size:13px;font-weight:700;color:var(--navy-deep,#064187);margin:0 0 4px;">No brute-force protection on sign-in</p>
+              <p style="font-size:13px;color:var(--ink,#1a2535);line-height:1.6;margin:0;">Supabase does not rate-limit login attempts by default. An attacker who knows your email address can attempt unlimited passwords without being locked out. We are working to enable login rate limits and leaked password detection in our Supabase configuration.</p>
+            </div>
+
+            <div>
+              <p style="font-size:13px;font-weight:700;color:var(--navy-deep,#064187);margin:0 0 4px;">No Content Security Policy</p>
+              <p style="font-size:13px;color:var(--ink,#1a2535);line-height:1.6;margin:0;">GitHub Pages does not support custom HTTP response headers. There is no Content-Security-Policy header on portal pages. All dynamic content is escaped before being written to the page, which limits XSS risk, but the absence of a CSP as a fallback defense is a real gap for a client-facing application.</p>
+            </div>
+
+            <div>
+              <p style="font-size:13px;font-weight:700;color:var(--navy-deep,#064187);margin:0 0 4px;">Voter ID stored in localStorage is not tied to your identity</p>
+              <p style="font-size:13px;color:var(--ink,#1a2535);line-height:1.6;margin:0;">Feature vote tracking uses a random ID stored in your browser's localStorage. Clearing your browser data resets it, allowing the same person to vote again. This affects feedback quality but not account security or personal data access.</p>
+            </div>
+
+            <div>
+              <p style="font-size:13px;font-weight:700;color:var(--navy-deep,#064187);margin:0 0 4px;">Portal source code is publicly readable</p>
+              <p style="font-size:13px;color:var(--ink,#1a2535);line-height:1.6;margin:0;">Because the portal is hosted on GitHub Pages, the full JavaScript source is publicly accessible. Anyone can read <code style="font-family:monospace;font-size:12px;background:rgba(6,65,135,.06);padding:1px 5px;border-radius:4px;">portal-app.js</code> to understand the application's structure, how authentication is handled, and which Supabase project backs it. The publishable API key visible in the source is intentionally low-privilege and row-level-security gated -- but the full application map is not secret.</p>
+            </div>
+          </div>
+
+          <p style="font-size:12px;color:var(--slate,#4e6282);margin:18px 0 0;line-height:1.55;">We will address these gaps as the platform matures. In the meantime: use a unique password, sign out when finished, and never open the portal on a shared or public computer.</p>
+        </div>
+
         <div class="card" style="padding:22px;">
           <h2 style="font-family:'Barlow Condensed',sans-serif;font-weight:900;font-size:19px;color:var(--navy-deep);margin:0 0 10px;">Contact</h2>
           <p style="font-size:13.5px;color:var(--ink,#1a2535);line-height:1.65;margin:0 0 12px;">Questions about your data or this policy:</p>

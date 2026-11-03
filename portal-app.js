@@ -362,6 +362,7 @@ let contentItems = [];
 let currentContentId = null;
 
 function escHtml(s){ const d=document.createElement('div'); d.textContent = s==null?'':String(s); return d.innerHTML; }
+function escJs(s){ return escHtml(s).replace(/'/g,'&#x27;'); }
 function fmtNow(){
   return new Date().toLocaleString('en-US', {month:'short', day:'numeric', hour:'numeric', minute:'2-digit'});
 }
@@ -445,7 +446,7 @@ function buildCalList(){
     row.innerHTML = `
       <div class="list-thumb">${dateObj ? dateObj.getDate() : '?'}</div>
       <div class="list-main">
-        <div class="list-title">${ci.title}</div>
+        <div class="list-title">${escHtml(ci.title)}</div>
         <div class="list-sub">${fmtItemDate(ci.date)}</div>
       </div>
       <span class="badge ${statusBadgeClass(ci.status)}">${statusBadgeText(ci.status)}</span>
@@ -476,10 +477,10 @@ function renderContentThread(ci){
     const row = document.createElement('div');
     row.className='comment';
     row.innerHTML = `
-      <div class="avatar" style="${cm.role==='client' ? 'background:var(--slate-soft);' : ''}">${initials}</div>
+      <div class="avatar" style="${cm.role==='client' ? 'background:var(--slate-soft);' : ''}">${escHtml(initials)}</div>
       <div class="comment-body">
-        <span class="comment-name">${cm.author}</span><span class="comment-time">${cm.time}</span>
-        <div class="comment-text">${cm.text}</div>
+        <span class="comment-name">${escHtml(cm.author)}</span><span class="comment-time">${escHtml(cm.time)}</span>
+        <div class="comment-text">${escHtml(cm.text)}</div>
       </div>
     `;
     wrap.appendChild(row);
@@ -494,7 +495,7 @@ function openContentModal(id){
   document.getElementById('cd-desc').textContent = ci.desc;
   const media = document.getElementById('cd-media');
   if(ci.imageUrls && ci.imageUrls.length){
-    media.innerHTML = `<div class="review-carousel">${ci.imageUrls.filter(u=>isSafeHttpUrl(u)||isSafeDataUrl(u)).map(u=>`<img src="${u}" onclick="window.open('${u}','_blank','noopener,noreferrer')" alt="Content photo">`).join('')}</div>`;
+    media.innerHTML = `<div class="review-carousel">${ci.imageUrls.filter(u=>isSafeHttpUrl(u)||isSafeDataUrl(u)).map(u=>`<img src="${escHtml(u)}" onclick="window.open('${escJs(u)}','_blank','noopener,noreferrer')" alt="Content photo">`).join('')}</div>`;
   } else {
     media.innerHTML = `<div class="review-media-empty">No photos attached to this item yet.</div>`;
   }
@@ -562,10 +563,10 @@ function renderDeliverables(){
     }
     row.onclick=()=>openContentModal(ci.id);
     row.innerHTML = `
-      <div class="list-thumb">${ci.title.slice(0,2).toUpperCase()}</div>
+      <div class="list-thumb">${escHtml(ci.title).slice(0,2).toUpperCase()}</div>
       <div class="list-main">
-        <div class="list-title">${ci.title}</div>
-        <div class="list-sub">${ci.project} &middot; ${fmtItemDate(ci.date)}</div>
+        <div class="list-title">${escHtml(ci.title)}</div>
+        <div class="list-sub">${escHtml(ci.project)} &middot; ${fmtItemDate(ci.date)}</div>
       </div>
       <div style="display:flex; gap:8px; align-items:center;">${actionHtml}</div>
     `;
@@ -611,8 +612,8 @@ function renderTickets(){
     row.innerHTML = `
       <div class="list-thumb"><span class="pri-chip pri-${t.priority}" style="margin:0;"></span></div>
       <div class="list-main">
-        <div class="list-title">${t.subject}</div>
-        <div class="list-sub">${t.category} &middot; opened ${t.createdAt}</div>
+        <div class="list-title">${escHtml(t.subject)}</div>
+        <div class="list-sub">${escHtml(t.category)} &middot; opened ${escHtml(t.createdAt)}</div>
       </div>
       <span class="badge ${ticketBadgeClass(t.status)}">${ticketBadgeText(t.status)}</span>
     `;
@@ -634,10 +635,10 @@ function renderTicketThread(t){
     const row = document.createElement('div');
     row.className='comment';
     row.innerHTML = `
-      <div class="avatar" style="${cm.role==='client' ? 'background:var(--slate-soft);' : ''}">${initials}</div>
+      <div class="avatar" style="${cm.role==='client' ? 'background:var(--slate-soft);' : ''}">${escHtml(initials)}</div>
       <div class="comment-body">
-        <span class="comment-name">${cm.author}</span><span class="comment-time">${cm.time}</span>
-        <div class="comment-text">${cm.text}</div>
+        <span class="comment-name">${escHtml(cm.author)}</span><span class="comment-time">${escHtml(cm.time)}</span>
+        <div class="comment-text">${escHtml(cm.text)}</div>
       </div>
     `;
     wrap.appendChild(row);
@@ -763,12 +764,12 @@ function renderFeatures(){
         <div class="vote-count">${f.votes}</div>
       </div>
       <div class="feature-main">
-        <div class="feature-title">${f.title}</div>
-        <div class="feature-desc">${f.desc}</div>
+        <div class="feature-title">${escHtml(f.title)}</div>
+        <div class="feature-desc">${escHtml(f.desc)}</div>
         <div class="feature-meta">
           <span class="badge ${featureBadgeClass(f.status)}">${featureBadgeText(f.status)}</span>
-          <span>${f.category}</span>
-          <span>&middot; posted by ${f.author}, ${f.date}</span>
+          <span>${escHtml(f.category)}</span>
+          <span>&middot; posted by ${escHtml(f.author)}, ${escHtml(f.date)}</span>
         </div>
       </div>
     `;

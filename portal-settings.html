@@ -182,6 +182,14 @@
             <div><div class="toggle-name">Monthly report ready</div><div class="toggle-desc">Notify me when a new performance report is published</div></div>
             <div class="switch" onclick="this.classList.toggle('on')"></div>
           </div>
+          <div style="margin-top:16px;padding-top:16px;border-top:1px solid var(--line);">
+            <div style="font-size:13.5px;font-weight:700;color:var(--navy-deep);margin-bottom:4px;">Push Notifications</div>
+            <div style="font-size:12.5px;color:var(--slate);margin-bottom:12px;">Receive instant browser notifications when your agency posts updates, even when this tab is closed.</div>
+            <button id="push-btn" class="btn-primary" onclick="togglePushSubscription()" style="font-size:13px;padding:9px 18px;">
+              <span id="push-btn-label">Enable Push Notifications</span>
+            </button>
+            <div id="push-status" style="font-size:12px;color:var(--slate);margin-top:8px;"></div>
+          </div>
         </div>
       </div>
     </div>
@@ -380,6 +388,82 @@
 if ("serviceWorker" in navigator) {
   navigator.serviceWorker.register("/sw.js").catch(function(){});
 }
+// VAPID public key (set this to your generated VAPID public key)
+const VAPID_PUBLIC_KEY = window.FAVZE_VAPID_PUBLIC_KEY || '';
+
+function urlBase64ToUint8Array(base64String) {
+  const padding = '='.repeat((4 - base64String.length % 4) % 4);
+  const base64 = (base64String + padding).replace(/-/g, '+').replace(/_/g, '/');
+  const rawData = atob(base64);
+  return Uint8Array.from([...rawData].map(c => c.charCodeAt(0)));
+}
+
+async function getPushSubscription() {
+  if (!('serviceWorker' in navigator) || !('PushManager' in window)) return null;
+  const reg = await navigator.serviceWorker.ready;
+  return reg.pushManager.getSubscription();
+}
+
+async function togglePushSubscription() {
+  const btn = document.getElementById('push-btn');
+  const label = document.getElementById('push-btn-label');
+  const status = document.getElementById('push-status');
+  if (!('PushManager' in window)) {
+    status.textContent = 'Push notifications are not supported in this browser.';
+    return;
+  }
+  if (!VAPID_PUBLIC_KEY) {
+    status.textContent = 'Push notifications are not configured yet. Contact your agency.';
+    return;
+  }
+  btn.disabled = true;
+  const existing = await getPushSubscription();
+  if (existing) {
+    await existing.unsubscribe();
+    await saveSubscription(null);
+    label.textContent = 'Enable Push Notifications';
+    status.textContent = 'Push notifications disabled.';
+  } else {
+    const perm = await Notification.requestPermission();
+    if (perm !== 'granted') {
+      status.textContent = 'Permission denied. Enable notifications in your browser settings.';
+      btn.disabled = false;
+      return;
+    }
+    const reg = await navigator.serviceWorker.ready;
+    const sub = await reg.pushManager.subscribe({
+      userVisibleOnly: true,
+      applicationServerKey: urlBase64ToUint8Array(VAPID_PUBLIC_KEY),
+    });
+    await saveSubscription(sub.toJSON());
+    label.textContent = 'Disable Push Notifications';
+    status.textContent = 'Push notifications enabled.';
+  }
+  btn.disabled = false;
+}
+
+async function saveSubscription(subJson) {
+  try {
+    const sb = window.supabase && window.supabase.createClient
+      ? window.supabase.createClient('https://ozbhlqgytfyjdgkoyhkt.supabase.co', 'sb_publishable_35rPBJVeCiEETVdBP0dLlw_OmpU77Vd')
+      : null;
+    if (!sb) return;
+    const { data: { session } } = await sb.auth.getSession().catch(() => ({ data: { session: null } }));
+    if (!session) return;
+    await fetch('https://ozbhlqgytfyjdgkoyhkt.supabase.co/functions/v1/portal-push-sub', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + session.access_token },
+      body: JSON.stringify({ subscription: subJson }),
+    });
+  } catch(e) { console.error('saveSubscription failed', e); }
+}
+
+async function initPushBtn() {
+  const label = document.getElementById('push-btn-label');
+  const sub = await getPushSubscription().catch(() => null);
+  if (sub) label.textContent = 'Disable Push Notifications';
+}
+initPushBtn();
 </script>
 </body>
 </html>

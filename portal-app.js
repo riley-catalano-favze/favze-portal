@@ -148,6 +148,23 @@ async function notifyAgency({ action, contentTitle, note, ticketSubject, ticketC
     });
   }catch(e){ console.error('notifyAgency failed', e); }
 }
+async function downloadContentPhoto(url, contentId, contentTitle, photoNum){
+  try{
+    const res = await fetch(url);
+    const blob = await res.blob();
+    const ext = (blob.type.split('/')[1] || 'jpg').replace('jpeg','jpg');
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = `favze-photo-${photoNum}.${ext}`;
+    document.body.appendChild(a);
+    a.click();
+    setTimeout(()=>{ URL.revokeObjectURL(a.href); a.remove(); }, 1000);
+    notifyAgency({ action: 'photo-download', contentTitle: contentTitle, note: `Photo ${photoNum}` });
+  }catch(e){
+    console.error('Photo download failed', e);
+    window.open(url, '_blank', 'noopener,noreferrer');
+  }
+}
 function showLoginError(msg){
   const el = document.getElementById('login-error');
   el.textContent = msg;
@@ -627,7 +644,15 @@ function openContentModal(id){
   }
   const media = document.getElementById('cd-media');
   if(ci.imageUrls && ci.imageUrls.length){
-    media.innerHTML = `<div class="review-carousel">${ci.imageUrls.filter(u=>isSafeHttpUrl(u)||isSafeDataUrl(u)).map(u=>`<img src="${escHtml(u)}" onclick="window.open('${escJs(u)}','_blank','noopener,noreferrer')" alt="Content photo">`).join('')}</div>`;
+    const safeUrls = ci.imageUrls.filter(u=>isSafeHttpUrl(u)||isSafeDataUrl(u));
+    media.innerHTML = `<div class="review-carousel">${safeUrls.map((u,idx)=>`
+      <div class="carousel-photo-wrap">
+        <img src="${escHtml(u)}" onclick="window.open('${escJs(u)}','_blank','noopener,noreferrer')" alt="Content photo">
+        <button class="btn-photo-dl" onclick="downloadContentPhoto('${escJs(u)}','${escJs(ci.id)}','${escJs(ci.title)}',${idx+1})" title="Download photo">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+          Download
+        </button>
+      </div>`).join('')}</div>`;
   } else {
     media.innerHTML = `<div class="review-media-empty">No photos attached to this item yet.</div>`;
   }

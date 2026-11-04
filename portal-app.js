@@ -322,12 +322,14 @@ const _portalIsRecoveryLink = (function handlePortalPasswordReset(){
   // Show a loading placeholder synchronously so the login form never flashes
   const ls = document.getElementById('loginScreen');
   if(ls) ls.classList.add('open');
-  const wrap = document.getElementById('login-card-inner') || document.getElementById('loginScreen');
+  // Find the card (.modal inside loginScreen) so the reset form appears inside it
+  const card = ls ? ls.querySelector('.modal') : null;
+  const wrap = card || ls;
   if(wrap){
     const resetWrap = document.createElement('div');
     resetWrap.id = 'portal-reset-wrap';
-    resetWrap.style.cssText = 'padding:24px;';
-    resetWrap.innerHTML = '<p style="font-size:14px;color:#04305f;text-align:center;">Loading reset form…</p>';
+    resetWrap.style.cssText = 'padding:24px;text-align:center;';
+    resetWrap.innerHTML = '<p style="font-size:14px;color:#04305f;">Loading reset form…</p>';
     wrap.appendChild(resetWrap);
   }
   client.auth.onAuthStateChange((event) => {

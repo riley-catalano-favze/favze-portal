@@ -131,7 +131,7 @@ function getSupabaseClient(){
   supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY);
   return supabaseClient;
 }
-async function notifyAgency({ action, contentTitle, note }){
+async function notifyAgency({ action, contentTitle, note, ticketSubject, ticketCategory }){
   try{
     const sb = getSupabaseClient();
     if(!sb) return;
@@ -144,7 +144,7 @@ async function notifyAgency({ action, contentTitle, note }){
         'Content-Type': 'application/json',
         'Authorization': 'Bearer ' + session.access_token,
       },
-      body: JSON.stringify({ action, contentTitle, clientName, note: note || '' }),
+      body: JSON.stringify({ action, contentTitle, clientName, note: note || '', ticketSubject, ticketCategory }),
     });
   }catch(e){ console.error('notifyAgency failed', e); }
 }
@@ -647,6 +647,7 @@ async function postContentComment(){
   await storageSet('favze-portal-content-items', contentItems);
   renderContentThread(ci);
   document.getElementById('cd-reply').value = '';
+  notifyAgency({ action: 'comment', contentTitle: ci.title, note: text });
 }
 async function setContentStatus(status){
   const ci = contentItems.find(c=>c.id===currentContentId);
@@ -812,6 +813,7 @@ async function submitTicket(){
   ticketsData.push(ticket);
   await storageSet('favze-portal-tickets', ticketsData);
   renderTickets();
+  notifyAgency({ action: 'new-ticket', ticketSubject: subject, ticketCategory: category, note: details });
   document.getElementById('ticketSubject').value='';
   document.getElementById('ticketDetails').value='';
   closeModal('newTicket');
@@ -826,6 +828,7 @@ async function postTicketReply(){
   if(t.status==='resolved') t.status='open';
   await storageSet('favze-portal-tickets', ticketsData);
   renderTicketThread(t);
+  notifyAgency({ action: 'ticket-reply', ticketSubject: t.subject, ticketCategory: t.category, note: text });
   document.getElementById('tk-reply').value='';
   const badge = document.getElementById('tk-badge');
   badge.className = 'badge '+ticketBadgeClass(t.status);

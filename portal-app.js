@@ -1007,7 +1007,174 @@ async function initPortal(){
   renderFeatures();
   loadExtraDeliverablesBilling();
   loadPortalProjects();
+  loadBillingData();
+  loadReferralData();
+  checkSatisfactionPulse();
   try{ const a = JSON.parse(sessionStorage.getItem(PORTAL_AFTER_KEY)||'null'); sessionStorage.removeItem(PORTAL_AFTER_KEY); runPortalAfter(a); }catch(e){}
+}
+
+/* ===================== STRIPE PAYMENTS ===================== */
+async function loadBillingData(){
+  const client = getSupabaseClient();
+  if(!client || !CLIENT_ID) return;
+  try{
+    const { data, error } = await client.from('crm_data').select('stripe_payment_link, referral_reward').eq('client_id', CLIENT_ID).maybeSingle();
+    if(error || !data) return;
+    // Stripe payment link
+    const link = (data.stripe_payment_link || '').trim();
+    const payWrap = document.getElementById('stripe-pay-wrap');
+    if(payWrap){
+      if(link){
+        payWrap.innerHTML = `
+          <a href="${escHtml(link)}" target="_blank" rel="noopener noreferrer" class="btn btn-primary" style="display:inline-flex;align-items:center;gap:8px;text-decoration:none;">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><rect x="1" y="4" width="22" height="16" rx="2" ry="2"/><line x1="1" y1="10" x2="23" y2="10"/></svg>
+            Pay Invoice
+          </a>
+          <p style="font-size:12px;color:var(--slate);margin-top:8px;">Opens Stripe Checkout in a new tab. Your card details are never stored here.</p>`;
+      } else {
+        payWrap.innerHTML = `<p style="font-size:13px;color:var(--slate-soft);">No invoice ready yet. Your account manager will send a payment link when billing is active.</p>`;
+      }
+    }
+    // Referral reward type
+    const reward = (data.referral_reward || '').trim();
+    const rewardEl = document.getElementById('referral-reward-type');
+    if(rewardEl && reward) rewardEl.textContent = reward;
+  }catch(e){ console.error('loadBillingData failed', e); }
+}
+
+/* ===================== REFERRAL TRACKER ===================== */
+async function loadReferralData(){
+  const wrap = document.getElementById('referral-wrap');
+  if(!wrap || !CLIENT_ID) return;
+  const refLink = `${location.origin}${location.pathname.replace(/\/[^/]*$/, '/')}index.html?ref=${CLIENT_ID}`;
+  const client = getSupabaseClient();
+  let referrals = [];
+  try{
+    const { data, error } = await client.from('referrals').select('*').eq('referrer_client_id', CLIENT_ID).order('created_at', {ascending:false});
+    if(!error) referrals = data || [];
+  }catch(e){ console.error('loadReferralData failed', e); }
+  const counts = { pending: 0, signed: 0, converted: 0 };
+  referrals.forEach(r => { counts[r.status] = (counts[r.status] || 0) + 1; });
+  wrap.innerHTML = `
+    <div style="margin-bottom:16px;">
+      <div style="font-size:13px;font-weight:600;color:var(--navy-deep);margin-bottom:6px;">Your referral link</div>
+      <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
+        <input id="referral-link-input" type="text" value="${escHtml(refLink)}" readonly
+          style="flex:1;min-width:200px;font-size:12px;padding:8px 10px;border:1px solid var(--line);border-radius:8px;background:var(--paper);color:var(--slate);">
+        <button class="btn btn-navy btn-sm" onclick="copyReferralLink()" style="white-space:nowrap;">Copy Link</button>
+      </div>
+      <div id="referral-reward-type" style="font-size:12px;color:var(--slate);margin-top:6px;"></div>
+    </div>
+    <div class="grid g-3" style="margin-bottom:16px;">
+      <div style="text-align:center;padding:14px;background:var(--paper);border-radius:10px;">
+        <div style="font-size:28px;font-weight:900;font-family:'Barlow Condensed',sans-serif;color:var(--navy-deep);">${counts.pending + counts.signed + counts.converted}</div>
+        <div style="font-size:12px;color:var(--slate);">Total Referred</div>
+      </div>
+      <div style="text-align:center;padding:14px;background:var(--good-bg);border-radius:10px;">
+        <div style="font-size:28px;font-weight:900;font-family:'Barlow Condensed',sans-serif;color:var(--good);">${counts.signed + counts.converted}</div>
+        <div style="font-size:12px;color:var(--slate);">Became Clients</div>
+      </div>
+      <div style="text-align:center;padding:14px;background:var(--pend-bg);border-radius:10px;">
+        <div style="font-size:28px;font-weight:900;font-family:'Barlow Condensed',sans-serif;color:var(--pend);">${counts.pending}</div>
+        <div style="font-size:12px;color:var(--slate);">Pending</div>
+      </div>
+    </div>
+    ${referrals.length ? `
+    <div style="font-size:13px;font-weight:600;color:var(--navy-deep);margin-bottom:8px;">Referral History</div>
+    <div style="display:flex;flex-direction:column;gap:6px;">
+      ${referrals.map(r=>`
+        <div style="display:flex;align-items:center;justify-content:space-between;padding:10px 12px;background:var(--paper);border-radius:8px;font-size:13px;">
+          <span style="color:var(--ink);">${escHtml(r.referred_email || 'Referred contact')}</span>
+          <span class="badge ${r.status==='converted'?'badge-shipped':r.status==='signed'?'badge-planned':'badge-pending'}">${r.status==='converted'?'Converted':r.status==='signed'?'Signed':'Pending'}</span>
+        </div>`).join('')}
+    </div>` : `<p style="font-size:13px;color:var(--slate-soft);">No referrals yet. Share your link to get started.</p>`}
+    <div style="margin-top:16px;padding-top:16px;border-top:1px solid var(--line);">
+      <div style="font-size:13px;font-weight:600;color:var(--navy-deep);margin-bottom:8px;">Log a referral</div>
+      <div style="display:flex;gap:8px;flex-wrap:wrap;">
+        <input id="referral-email-input" type="email" placeholder="Referred business email"
+          style="flex:1;min-width:180px;font-size:13px;padding:8px 10px;border:1px solid var(--line);border-radius:8px;">
+        <button class="btn btn-navy btn-sm" onclick="submitReferral()" style="white-space:nowrap;">Submit</button>
+      </div>
+    </div>`;
+  // Load reward type now that DOM is set
+  loadBillingData();
+}
+
+function copyReferralLink(){
+  const inp = document.getElementById('referral-link-input');
+  if(!inp) return;
+  navigator.clipboard.writeText(inp.value).then(()=>showPortalToast('Referral link copied!')).catch(()=>{
+    inp.select(); document.execCommand('copy'); showPortalToast('Referral link copied!');
+  });
+}
+
+async function submitReferral(){
+  const inp = document.getElementById('referral-email-input');
+  if(!inp) return;
+  const email = inp.value.trim();
+  if(!email || !email.includes('@')){ showPortalToast('Enter a valid email address.', true); return; }
+  const client = getSupabaseClient();
+  if(!client || !CLIENT_ID){ showPortalToast('Sign in to submit a referral.', true); return; }
+  try{
+    const { error } = await client.from('referrals').insert({ referrer_client_id: CLIENT_ID, referred_email: email, status: 'pending' });
+    if(error) throw error;
+    inp.value = '';
+    showPortalToast('Referral submitted! We\'ll follow up with them.');
+    loadReferralData();
+  }catch(e){ console.error(e); showPortalToast('Could not save referral. Try again.', true); }
+}
+
+/* ===================== SATISFACTION PULSE ===================== */
+const PULSE_KEY = 'favze-pulse-last';
+function checkSatisfactionPulse(){
+  // Show pulse once per month per browser
+  try{
+    const last = localStorage.getItem(PULSE_KEY);
+    if(last){
+      const daysSince = (Date.now() - Number(last)) / 86400000;
+      if(daysSince < 28) return;
+    }
+  }catch(e){}
+  // Delay 90s after login so client gets a chance to look around first
+  setTimeout(openPulseModal, 90000);
+}
+function openPulseModal(){
+  const overlay = document.getElementById('overlay-pulse');
+  if(!overlay) return;
+  overlay.classList.add('open');
+  renderPulseStars(0);
+}
+function closePulseModal(didRate){
+  const overlay = document.getElementById('overlay-pulse');
+  if(overlay) overlay.classList.remove('open');
+  if(didRate){
+    try{ localStorage.setItem(PULSE_KEY, String(Date.now())); }catch(e){}
+  }
+}
+let pulseRating = 0;
+function renderPulseStars(selected){
+  pulseRating = selected;
+  const wrap = document.getElementById('pulse-stars');
+  if(!wrap) return;
+  wrap.innerHTML = [1,2,3,4,5].map(n=>`
+    <button onclick="renderPulseStars(${n})" aria-label="${n} star${n>1?'s':''}"
+      style="background:none;border:none;cursor:pointer;padding:4px;font-size:36px;color:${n<=selected?'#f5a623':'var(--line)'};transition:color .1s;">
+      &#9733;
+    </button>`).join('');
+}
+async function submitPulse(){
+  if(!pulseRating){ showPortalToast('Pick a rating first.', true); return; }
+  const comment = (document.getElementById('pulse-comment')||{}).value || '';
+  const client = getSupabaseClient();
+  if(client && CLIENT_ID){
+    try{
+      await client.from('satisfaction_ratings').insert({ client_id: CLIENT_ID, rating: pulseRating, comment });
+    }catch(e){ console.error('pulse insert failed', e); }
+  }
+  // Also notify agency
+  notifyAgency({ action: 'satisfaction', note: `Rating: ${pulseRating}/5. ${comment}` });
+  closePulseModal(true);
+  showPortalToast('Thanks for the feedback!');
 }
 let portalProjects = [];
 async function loadPortalProjects(){

@@ -246,6 +246,21 @@
      This modal is a template for celebrating a real milestone (a traffic goal,
      a review count, etc). It has no automatic trigger right now since there's
      no live data behind it, wire it up to fire when a real threshold is hit. -->
+<!-- ================= SATISFACTION PULSE ================= -->
+<div class="overlay" id="overlay-pulse">
+  <div class="modal" style="max-width:420px;text-align:center;padding:36px 28px;">
+    <div style="font-size:40px;margin-bottom:8px;">&#128516;</div>
+    <h2 style="font-size:24px;margin-bottom:6px;">Quick check-in</h2>
+    <p style="font-size:14px;color:var(--slate);margin-bottom:20px;">How happy are you with Favze this month? Takes two seconds.</p>
+    <div id="pulse-stars" style="display:flex;justify-content:center;gap:4px;margin-bottom:20px;"></div>
+    <textarea id="pulse-comment" placeholder="Anything specific on your mind? (optional)" style="width:100%;font-size:13px;padding:10px;border:1px solid var(--line);border-radius:10px;resize:vertical;min-height:70px;font-family:inherit;margin-bottom:16px;"></textarea>
+    <div style="display:flex;gap:10px;">
+      <button class="btn btn-ghost" style="flex:1;justify-content:center;" onclick="closePulseModal(false)">Skip</button>
+      <button class="btn btn-primary" style="flex:1;justify-content:center;" onclick="submitPulse()">Send</button>
+    </div>
+  </div>
+</div>
+
 <div class="overlay" id="overlay-milestone">
   <div class="modal confetti-modal">
     <div class="big">&#127881;</div>

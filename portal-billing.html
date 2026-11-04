@@ -162,13 +162,17 @@
         </div>
         <div class="card">
           <div class="card-head"><div class="card-title">Retainer &amp; Payment</div></div>
-          <div style="font-size:13px; color:var(--slate); margin-bottom:12px;">Monthly retainer, billed automatically once your plan is set up.</div>
-          <div style="display:flex; justify-content:space-between; padding:9px 0; border-top:1px solid var(--line);"><span>Plan</span><b style="color:var(--slate-soft);">Not set up yet</b></div>
-          <div style="display:flex; justify-content:space-between; padding:9px 0; border-top:1px solid var(--line);"><span>Amount</span><b style="color:var(--slate-soft);">&mdash;</b></div>
-          <div style="display:flex; justify-content:space-between; padding:9px 0; border-top:1px solid var(--line);"><span>Payment method</span><b style="color:var(--slate-soft);">Not on file</b></div>
-          <button class="btn btn-ghost btn-sm" style="margin-top:12px; width:100%; justify-content:center;" onclick="alert('This would open a secure payment method update flow.')">Add Payment Method</button>
-          <button class="btn btn-navy btn-sm" style="margin-top:8px; width:100%; justify-content:center;" onclick="openModal('sign')">Review &amp; Sign Contract</button>
+          <div style="font-size:13px; color:var(--slate); margin-bottom:16px;">Pay your invoice securely through Stripe. Your card details are handled entirely by Stripe and never stored here.</div>
+          <div id="stripe-pay-wrap" style="min-height:48px;">
+            <div style="font-size:13px;color:var(--slate-soft);">Loading payment info...</div>
+          </div>
+          <button class="btn btn-navy btn-sm" style="margin-top:14px; width:100%; justify-content:center;" onclick="openModal('sign')">Review &amp; Sign Contract</button>
         </div>
+      </div>
+
+      <div class="card">
+        <div class="card-head"><div class="card-title">Refer a Business</div></div>
+        <div id="referral-wrap" style="font-size:13px;color:var(--slate-soft);">Loading referral info...</div>
       </div>
 
       <div class="card">

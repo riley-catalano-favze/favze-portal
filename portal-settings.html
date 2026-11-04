@@ -386,7 +386,7 @@
 <script src="portal-app.js"></script>
 <script>
 if ("serviceWorker" in navigator) {
-  navigator.serviceWorker.register("/sw.js").catch(function(){});
+  navigator.serviceWorker.register("./sw.js").catch(function(){});
 }
 // VAPID public key (set this to your generated VAPID public key)
 const VAPID_PUBLIC_KEY = window.FAVZE_VAPID_PUBLIC_KEY || '';

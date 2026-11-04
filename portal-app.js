@@ -149,8 +149,11 @@ async function notifyAgency({ action, contentTitle, note, ticketSubject, ticketC
   }catch(e){ console.error('notifyAgency failed', e); }
 }
 async function downloadContentPhoto(url, contentId, contentTitle, photoNum){
+  // Fire the notification first -- the download itself may be async
+  notifyAgency({ action: 'photo-download', contentTitle: contentTitle, note: `Photo ${photoNum}` });
   try{
-    const res = await fetch(url);
+    const res = await fetch(url, { mode: 'cors' });
+    if(!res.ok) throw new Error('fetch failed');
     const blob = await res.blob();
     const ext = (blob.type.split('/')[1] || 'jpg').replace('jpeg','jpg');
     const a = document.createElement('a');
@@ -159,9 +162,10 @@ async function downloadContentPhoto(url, contentId, contentTitle, photoNum){
     document.body.appendChild(a);
     a.click();
     setTimeout(()=>{ URL.revokeObjectURL(a.href); a.remove(); }, 1000);
-    notifyAgency({ action: 'photo-download', contentTitle: contentTitle, note: `Photo ${photoNum}` });
   }catch(e){
-    console.error('Photo download failed', e);
+    // CORS block or network error: open full-res in new tab so client can long-press save
+    console.warn('Direct download blocked, opening in new tab', e);
+    showPortalToast('Opening photo in new tab -- long-press or right-click to save.');
     window.open(url, '_blank', 'noopener,noreferrer');
   }
 }
@@ -893,6 +897,7 @@ async function submitServiceRequest(){
   ticketsData.push(ticket);
   await storageSet('favze-portal-tickets', ticketsData);
   renderTickets();
+  notifyAgency({ action: 'new-ticket', ticketSubject: ticket.subject, ticketCategory: 'Service Request', note: details });
   closeModal('serviceRequest');
   goTo('tickets', {t:'ticket', id});
 }
@@ -938,9 +943,8 @@ function renderFeatures(){
     wrap.appendChild(row);
   });
 }
-// Since there's no real login yet, votes are tracked per-browser via a random id stashed in
-// localStorage, so "did I vote on this" survives a reload even though the vote itself lives
-// in the shared Supabase table for everyone to see.
+// Votes are tracked per-browser via a random id stashed in localStorage so "did I vote"
+// survives a reload even though the vote count lives in the shared Supabase table.
 function getMyVoterId(){
   let id = localStorage.getItem('favze_portal_voter_id');
   if(!id){ id = 'v_'+Math.random().toString(36).slice(2,10); localStorage.setItem('favze_portal_voter_id', id); }
@@ -1175,6 +1179,7 @@ const glossary = [
 ];
 function renderGloss(list){
   const wrap = document.getElementById('glossList');
+  if(!wrap) return;
   wrap.innerHTML = '';
   list.forEach(g=>{
     const el = document.createElement('div');
@@ -1188,3 +1193,53 @@ function filterGloss(){
   renderGloss(glossary.filter(g=>g.term.toLowerCase().includes(q) || g.def.toLowerCase().includes(q)));
 }
 renderGloss(glossary);
+
+/* ===================== MOBILE NAV ===================== */
+(function injectMobileNav(){
+  // Build the top bar and slide-out drawer from the existing sidebar's nav links
+  const sidebar = document.querySelector('.sidebar');
+  if(!sidebar) return;
+
+  // Top bar
+  const topbar = document.createElement('div');
+  topbar.className = 'mob-topbar';
+  topbar.innerHTML = `
+    <div class="mob-logo">Favze</div>
+    <button class="mob-hamburger" id="mob-ham" aria-label="Open menu">
+      <span></span><span></span><span></span>
+    </button>`;
+
+  // Overlay
+  const overlay = document.createElement('div');
+  overlay.className = 'mob-drawer-overlay';
+  overlay.id = 'mob-overlay';
+
+  // Drawer -- clone the sidebar's nav links
+  const drawer = document.createElement('nav');
+  drawer.className = 'mob-drawer';
+  drawer.id = 'mob-drawer';
+  drawer.innerHTML = `<button class="mob-drawer-close" id="mob-close" aria-label="Close menu">&#x2715;</button>` + sidebar.innerHTML;
+
+  document.body.prepend(overlay);
+  document.body.prepend(drawer);
+  const main = document.querySelector('.shell') || document.querySelector('main');
+  if(main) main.before(topbar);
+  else document.body.prepend(topbar);
+
+  function openDrawer(){
+    drawer.classList.add('open');
+    overlay.classList.add('open');
+    document.getElementById('mob-ham').classList.add('open');
+    document.body.style.overflow = 'hidden';
+  }
+  function closeDrawer(){
+    drawer.classList.remove('open');
+    overlay.classList.remove('open');
+    document.getElementById('mob-ham').classList.remove('open');
+    document.body.style.overflow = '';
+  }
+  document.getElementById('mob-ham').addEventListener('click', openDrawer);
+  document.getElementById('mob-close').addEventListener('click', closeDrawer);
+  overlay.addEventListener('click', closeDrawer);
+  drawer.querySelectorAll('a').forEach(a => a.addEventListener('click', closeDrawer));
+})();

@@ -8,6 +8,7 @@
   --slate-soft:#8CA0B3;
   --paper:#F5F8FA;
   --card:#FFFFFF;
+  --surface:#EEF3F7;
   --line:#E1E8EE;
   --good:#1E8F5F;
   --good-bg:#E7F6EE;
@@ -365,10 +366,30 @@ ul{list-style:none;}
 
 .help-tip{border-bottom:1px dotted var(--slate-soft); cursor:help;}
 
+/* ===== MOBILE NAV ===== */
+.mob-topbar{display:none; align-items:center; justify-content:space-between; background:var(--navy-deep); color:#fff; padding:14px 18px; position:sticky; top:0; z-index:200;}
+.mob-topbar .mob-logo{font-family:'Barlow Condensed',sans-serif; font-weight:900; font-size:22px; letter-spacing:.04em; text-transform:uppercase;}
+.mob-hamburger{background:none; border:none; color:#fff; cursor:pointer; padding:4px; display:flex; flex-direction:column; gap:5px;}
+.mob-hamburger span{display:block; width:22px; height:2px; background:#fff; border-radius:2px; transition:transform .2s, opacity .2s;}
+.mob-hamburger.open span:nth-child(1){transform:translateY(7px) rotate(45deg);}
+.mob-hamburger.open span:nth-child(2){opacity:0;}
+.mob-hamburger.open span:nth-child(3){transform:translateY(-7px) rotate(-45deg);}
+.mob-drawer-overlay{display:none; position:fixed; inset:0; background:rgba(0,0,0,.45); z-index:300;}
+.mob-drawer-overlay.open{display:block;}
+.mob-drawer{position:fixed; top:0; left:-280px; width:280px; height:100%; background:linear-gradient(185deg,var(--navy-deep),#062f5f 70%,#052549); z-index:400; transition:left .22s ease; overflow-y:auto; padding:20px 0 30px;}
+.mob-drawer.open{left:0;}
+.mob-drawer-close{background:none; border:none; color:rgba(255,255,255,.7); font-size:22px; cursor:pointer; padding:4px 20px 16px; display:block;}
+
 @media (max-width:980px){
   .shell{grid-template-columns:1fr;}
   .sidebar{display:none;}
+  .mob-topbar{display:flex;}
   .g-4{grid-template-columns:repeat(2,1fr);}
   .g-3{grid-template-columns:1fr 1fr;}
   .g-2, .g-2b{grid-template-columns:1fr;}
+}
+@media (max-width:540px){
+  .g-4{grid-template-columns:1fr 1fr;}
+  .g-3{grid-template-columns:1fr;}
+  .review-carousel img,.carousel-photo-wrap img{width:calc(100vw - 64px); height:auto;}
 }

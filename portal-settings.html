@@ -167,21 +167,34 @@
         </div>
         <div class="card">
           <div class="card-head"><div class="card-title">Notifications</div></div>
+          <p style="font-size:12px;color:var(--slate);margin-bottom:14px;">These preferences control both in-app notifications and email alerts for each activity type.</p>
           <div class="toggle-row">
-            <div><div class="toggle-name">Content ready for review</div><div class="toggle-desc">Email me when new content needs approval</div></div>
-            <div class="switch on" onclick="this.classList.toggle('on')"></div>
+            <div>
+              <div class="toggle-name">Content ready for review</div>
+              <div class="toggle-desc">Get notified the moment new content is posted for your approval. Stay in the loop so campaigns move faster.</div>
+            </div>
+            <div class="switch on" id="notif-toggle-content" onclick="toggleNotifPref('content', this)"></div>
           </div>
           <div class="toggle-row">
-            <div><div class="toggle-name">Comment replies</div><div class="toggle-desc">Notify me when your team replies to my comments</div></div>
-            <div class="switch on" onclick="this.classList.toggle('on')"></div>
+            <div>
+              <div class="toggle-name">Support ticket activity</div>
+              <div class="toggle-desc">Receive updates when your agency replies to a ticket. Quick back-and-forth keeps issues resolved faster.</div>
+            </div>
+            <div class="switch on" id="notif-toggle-ticket" onclick="toggleNotifPref('ticket', this)"></div>
           </div>
           <div class="toggle-row">
-            <div><div class="toggle-name">Invoice reminders</div><div class="toggle-desc">Remind me 3 days before an invoice is due</div></div>
-            <div class="switch on" onclick="this.classList.toggle('on')"></div>
+            <div>
+              <div class="toggle-name">Invoice reminders</div>
+              <div class="toggle-desc">Get a heads-up email 3 days before an invoice is due so nothing slips through.</div>
+            </div>
+            <div class="switch on" id="notif-toggle-invoice" onclick="toggleNotifPref('invoice', this)"></div>
           </div>
           <div class="toggle-row">
-            <div><div class="toggle-name">Monthly report ready</div><div class="toggle-desc">Notify me when a new performance report is published</div></div>
-            <div class="switch" onclick="this.classList.toggle('on')"></div>
+            <div>
+              <div class="toggle-name">Monthly performance report</div>
+              <div class="toggle-desc">Know the moment your latest results are ready. See what's working and where momentum is building.</div>
+            </div>
+            <div class="switch" id="notif-toggle-report" onclick="toggleNotifPref('report', this)"></div>
           </div>
           <div style="margin-top:16px;padding-top:16px;border-top:1px solid var(--line);">
             <div style="font-size:13.5px;font-weight:700;color:var(--navy-deep);margin-bottom:4px;">Push Notifications</div>
@@ -191,6 +204,7 @@
             </button>
             <div id="push-status" style="font-size:12px;color:var(--slate);margin-top:8px;"></div>
           </div>
+          <div id="notif-saved-msg" style="display:none;font-size:12px;color:var(--teal,#0f766e);margin-top:12px;">Preferences saved.</div>
         </div>
       </div>
     </div>
@@ -389,26 +403,98 @@
 if ("serviceWorker" in navigator) {
   navigator.serviceWorker.register("./sw.js").catch(function(){});
 }
-// VAPID public key (set this to your generated VAPID public key)
-const VAPID_PUBLIC_KEY = window.FAVZE_VAPID_PUBLIC_KEY || '';
+
+/* =========================================================
+   NOTIFICATION PREFERENCES
+   Stored in localStorage under key favze_notif_prefs_{uid}.
+   Defaults: content=true, ticket=true, invoice=true, report=false.
+   ========================================================= */
+var NOTIF_DEFAULTS = { content: true, ticket: true, invoice: true, report: false };
+
+function notifPrefsKey() {
+  try {
+    var sb = window._favzeSupabaseClient;
+    var uid = sb && sb.auth && sb.auth.getUser ? null : null;
+    // Fall back to a session-scoped key if no uid yet; portal-app.js sets window._favzeUid
+    return 'favze_notif_prefs_' + (window._favzeUid || 'default');
+  } catch(e) { return 'favze_notif_prefs_default'; }
+}
+
+function loadNotifPrefs() {
+  try {
+    var raw = localStorage.getItem(notifPrefsKey());
+    if (!raw) return Object.assign({}, NOTIF_DEFAULTS);
+    return Object.assign({}, NOTIF_DEFAULTS, JSON.parse(raw));
+  } catch(e) { return Object.assign({}, NOTIF_DEFAULTS); }
+}
+
+function saveNotifPrefs(prefs) {
+  try { localStorage.setItem(notifPrefsKey(), JSON.stringify(prefs)); } catch(e) {}
+}
+
+// Called by each toggle switch
+function toggleNotifPref(key, el) {
+  var isOn = el.classList.toggle('on');
+  var prefs = loadNotifPrefs();
+  prefs[key] = isOn;
+  saveNotifPrefs(prefs);
+  window.FAVZE_NOTIF_PREFS = prefs;
+  var msg = document.getElementById('notif-saved-msg');
+  if (msg) {
+    msg.style.display = 'block';
+    clearTimeout(msg._t);
+    msg._t = setTimeout(function(){ msg.style.display = 'none'; }, 2000);
+  }
+}
+
+// Apply saved prefs to toggle UI; called after portal-app.js auth resolves
+function applyNotifPrefUI() {
+  var prefs = loadNotifPrefs();
+  window.FAVZE_NOTIF_PREFS = prefs;
+  ['content','ticket','invoice','report'].forEach(function(k) {
+    var el = document.getElementById('notif-toggle-' + k);
+    if (!el) return;
+    if (prefs[k]) { el.classList.add('on'); } else { el.classList.remove('on'); }
+  });
+}
+
+// portal-app.js fires window.onPortalReady() after auth; hook in here
+(function(){
+  var orig = window.onPortalReady;
+  window.onPortalReady = function() {
+    if (orig) orig();
+    applyNotifPrefUI();
+    initPushBtn();
+  };
+})();
+
+// Also run on DOMContentLoaded in case onPortalReady already fired or fires synchronously
+document.addEventListener('DOMContentLoaded', function() {
+  setTimeout(applyNotifPrefUI, 300);
+});
+
+/* =========================================================
+   PUSH NOTIFICATIONS
+   ========================================================= */
+var VAPID_PUBLIC_KEY = window.FAVZE_VAPID_PUBLIC_KEY || '';
 
 function urlBase64ToUint8Array(base64String) {
-  const padding = '='.repeat((4 - base64String.length % 4) % 4);
-  const base64 = (base64String + padding).replace(/-/g, '+').replace(/_/g, '/');
-  const rawData = atob(base64);
-  return Uint8Array.from([...rawData].map(c => c.charCodeAt(0)));
+  var padding = '='.repeat((4 - base64String.length % 4) % 4);
+  var base64 = (base64String + padding).replace(/-/g, '+').replace(/_/g, '/');
+  var rawData = atob(base64);
+  return Uint8Array.from([...rawData].map(function(c){ return c.charCodeAt(0); }));
 }
 
 async function getPushSubscription() {
   if (!('serviceWorker' in navigator) || !('PushManager' in window)) return null;
-  const reg = await navigator.serviceWorker.ready;
+  var reg = await navigator.serviceWorker.ready;
   return reg.pushManager.getSubscription();
 }
 
 async function togglePushSubscription() {
-  const btn = document.getElementById('push-btn');
-  const label = document.getElementById('push-btn-label');
-  const status = document.getElementById('push-status');
+  var btn = document.getElementById('push-btn');
+  var label = document.getElementById('push-btn-label');
+  var status = document.getElementById('push-status');
   if (!('PushManager' in window)) {
     status.textContent = 'Push notifications are not supported in this browser.';
     return;
@@ -418,21 +504,21 @@ async function togglePushSubscription() {
     return;
   }
   btn.disabled = true;
-  const existing = await getPushSubscription();
+  var existing = await getPushSubscription();
   if (existing) {
     await existing.unsubscribe();
     await saveSubscription(null);
     label.textContent = 'Enable Push Notifications';
     status.textContent = 'Push notifications disabled.';
   } else {
-    const perm = await Notification.requestPermission();
+    var perm = await Notification.requestPermission();
     if (perm !== 'granted') {
       status.textContent = 'Permission denied. Enable notifications in your browser settings.';
       btn.disabled = false;
       return;
     }
-    const reg = await navigator.serviceWorker.ready;
-    const sub = await reg.pushManager.subscribe({
+    var reg = await navigator.serviceWorker.ready;
+    var sub = await reg.pushManager.subscribe({
       userVisibleOnly: true,
       applicationServerKey: urlBase64ToUint8Array(VAPID_PUBLIC_KEY),
     });
@@ -445,11 +531,11 @@ async function togglePushSubscription() {
 
 async function saveSubscription(subJson) {
   try {
-    const sb = window.supabase && window.supabase.createClient
+    var sb = window.supabase && window.supabase.createClient
       ? window.supabase.createClient('https://ozbhlqgytfyjdgkoyhkt.supabase.co', 'sb_publishable_35rPBJVeCiEETVdBP0dLlw_OmpU77Vd')
       : null;
     if (!sb) return;
-    const { data: { session } } = await sb.auth.getSession().catch(() => ({ data: { session: null } }));
+    var { data: { session } } = await sb.auth.getSession().catch(function(){ return { data: { session: null } }; });
     if (!session) return;
     await fetch('https://ozbhlqgytfyjdgkoyhkt.supabase.co/functions/v1/portal-push-sub', {
       method: 'POST',
@@ -460,11 +546,11 @@ async function saveSubscription(subJson) {
 }
 
 async function initPushBtn() {
-  const label = document.getElementById('push-btn-label');
-  const sub = await getPushSubscription().catch(() => null);
+  var label = document.getElementById('push-btn-label');
+  if (!label) return;
+  var sub = await getPushSubscription().catch(function(){ return null; });
   if (sub) label.textContent = 'Disable Push Notifications';
 }
-initPushBtn();
 </script>
 </body>
 </html>

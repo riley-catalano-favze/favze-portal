@@ -131,8 +131,35 @@ function getSupabaseClient(){
   supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY);
   return supabaseClient;
 }
+/* Notification preference helpers */
+function getNotifPrefs(){
+  if(window.FAVZE_NOTIF_PREFS) return window.FAVZE_NOTIF_PREFS;
+  var defaults = { content: true, ticket: true, invoice: true, report: false };
+  try{
+    var key = 'favze_notif_prefs_' + (window._favzeUid || 'default');
+    var raw = localStorage.getItem(key);
+    var prefs = raw ? Object.assign({}, defaults, JSON.parse(raw)) : Object.assign({}, defaults);
+    window.FAVZE_NOTIF_PREFS = prefs;
+    return prefs;
+  }catch(e){ return defaults; }
+}
+/* Map action names to preference keys */
+function notifPrefForAction(action){
+  if(!action) return null;
+  var a = action.toLowerCase();
+  if(a === 'comment' || a === 'approved' || a === 'rejected' || a === 'photo-download') return 'content';
+  if(a === 'new-ticket' || a === 'ticket-reply') return 'ticket';
+  if(a === 'invoice-reminder') return 'invoice';
+  if(a === 'report-ready') return 'report';
+  return null;
+}
 async function notifyAgency({ action, contentTitle, note, ticketSubject, ticketCategory }){
   try{
+    var prefKey = notifPrefForAction(action);
+    if(prefKey !== null){
+      var prefs = getNotifPrefs();
+      if(!prefs[prefKey]) return; // user disabled this notification type
+    }
     const sb = getSupabaseClient();
     if(!sb) return;
     const { data: { session } } = await sb.auth.getSession().catch(()=>({ data:{ session:null } }));
@@ -291,6 +318,7 @@ async function ensureAccountRequest(role){
 }
 async function onSignedIn(session){
   CLIENT_ID = session.user.id;
+  window._favzeUid = session.user.id;
   currentSessionEmail = session.user.email || 'Client Contact';
   document.getElementById('acct-email').textContent = currentSessionEmail;
   document.getElementById('acct-avatar').textContent = currentSessionEmail.slice(0,2).toUpperCase();
@@ -304,6 +332,7 @@ async function onSignedIn(session){
   document.getElementById('pendingScreen').classList.remove('open');
   document.getElementById('portalShell').style.display = '';
   await initPortal();
+  if(typeof window.onPortalReady === 'function'){ try{ window.onPortalReady(); }catch(e){} }
 }
 /* ===================== PASSWORD RESET =====================
    Supabase sends reset links with a ?code= query param (PKCE flow).

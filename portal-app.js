@@ -225,7 +225,7 @@ async function portalSignUp(){
     console.error(err);
     showLoginError('Could not reach the login service. Check your connection and try again.');
   }finally{
-    btn.textContent = loginMode==='signup' ? 'Sign Up' : 'Sign In'; btn.disabled = false;
+    btn.textContent = 'Sign Up'; btn.disabled = false;
   }
 }
 async function portalSignOut(){
@@ -404,7 +404,7 @@ async function storageSet(key, value){
           // Remove any rows whose ids are no longer in the current value array
           // (handles single-item deletions without clearing everything).
           const currentIds = rows.map(r=>r.id);
-          await client.from(table).delete().eq('client_id', CLIENT_ID).not('id', 'in', `(${currentIds.map(id=>`"${id}"`).join(',')})`);
+          await client.from(table).delete().eq('client_id', CLIENT_ID).not('id', 'in', `(${currentIds.join(',')})`);
         }
       }
     }catch(e){ console.error('Supabase save failed, falling back to local storage', e); }
@@ -416,26 +416,6 @@ async function storageSet(key, value){
 }
 
 
-/* ===================== PROJECT TASKS ===================== */
-function toggleTask(el){
-  el.classList.toggle('done');
-  el.innerHTML = el.classList.contains('done') ? '&#10003;' : '';
-  el.nextElementSibling.classList.toggle('done');
-  const card = el.closest('.proj-card');
-  if(!card) return;
-  const total = card.querySelectorAll('.task-check').length;
-  const done = card.querySelectorAll('.task-check.done').length;
-  const pct = total ? Math.round((done/total)*100) : 0;
-  const fill = card.querySelector('.progress-fill');
-  if(fill) fill.style.width = pct+'%';
-  const meta = card.querySelector('.proj-meta');
-  if(meta) meta.textContent = meta.textContent.replace(/\d+ of \d+ tasks complete/, done+' of '+total+' tasks complete');
-  const badge = card.querySelector('.proj-top .badge');
-  if(badge){
-    if(pct===100){ badge.className='badge badge-approved'; badge.textContent='Complete'; }
-    else{ badge.className='badge badge-progress'; badge.textContent='In Progress'; }
-  }
-}
 
 /* ===================== PINNED ANNOUNCEMENTS ===================== */
 const pins = [
@@ -459,8 +439,28 @@ let currentContentId = null;
 
 function escHtml(s){ const d=document.createElement('div'); d.textContent = s==null?'':String(s); return d.innerHTML; }
 function escJs(s){ return escHtml(s).replace(/'/g,'&#x27;'); }
+let _portalToastTimer = null;
+function showPortalToast(msg, isError){
+  let el = document.getElementById('portal-toast');
+  if(!el){
+    el = document.createElement('div');
+    el.id = 'portal-toast';
+    el.style.cssText = 'position:fixed;bottom:24px;left:50%;transform:translateX(-50%);padding:10px 20px;border-radius:8px;font-size:14px;font-weight:600;color:#fff;z-index:9999;pointer-events:none;transition:opacity .3s;';
+    document.body.appendChild(el);
+  }
+  el.textContent = msg;
+  el.style.background = isError ? '#b42318' : '#04305f';
+  el.style.opacity = '1';
+  clearTimeout(_portalToastTimer);
+  _portalToastTimer = setTimeout(()=>{ el.style.opacity='0'; }, 3000);
+}
 function fmtNow(){
   return new Date().toLocaleString('en-US', {month:'short', day:'numeric', hour:'numeric', minute:'2-digit'});
+}
+function fmtDate(iso){
+  if(!iso) return '';
+  const [y,m,d] = iso.split('-');
+  return new Date(Number(y), Number(m)-1, Number(d)).toLocaleDateString('en-US', {month:'short', day:'numeric', year:'numeric'});
 }
 function statusBadgeClass(status){
   return status==='approved' ? 'badge-approved' : status==='pending' ? 'badge-pending' : 'badge-rejected';
@@ -783,7 +783,7 @@ async function submitTicket(){
   const priority = document.getElementById('ticketPriority').value;
   const details = document.getElementById('ticketDetails').value.trim();
   if(!subject || !details){
-    alert('Add a subject and a few details so your account team knows what they are looking at.');
+    showPortalToast('Add a subject and a few details so your account team knows what they are looking at.', true);
     return;
   }
   const id = 't'+Date.now();
@@ -920,7 +920,7 @@ async function submitFeature(){
   const category = document.getElementById('featureCategory').value;
   const desc = document.getElementById('featureDetails').value.trim();
   if(!title || !desc){
-    alert('Add a title and a short description so other users know what this is.');
+    showPortalToast('Add a title and a short description so other users know what this is.', true);
     return;
   }
   const id = 'f'+Date.now();
@@ -955,7 +955,118 @@ async function initPortal(){
   renderDeliverables();
   renderFeatures();
   loadExtraDeliverablesBilling();
+  loadPortalProjects();
   try{ const a = JSON.parse(sessionStorage.getItem(PORTAL_AFTER_KEY)||'null'); sessionStorage.removeItem(PORTAL_AFTER_KEY); runPortalAfter(a); }catch(e){}
+}
+let portalProjects = [];
+async function loadPortalProjects(){
+  const wrap = document.getElementById('projectsListWrap');
+  if(!wrap) return;
+  wrap.innerHTML = '<p style="color:var(--slate); font-size:14px; padding:20px 0;">Loading projects...</p>';
+  const client = getSupabaseClient();
+  if(!client || !CLIENT_ID){ wrap.innerHTML = '<p style="color:var(--slate); font-size:14px; padding:20px 0;">Sign in to view your projects.</p>'; return; }
+  try{
+    const { data, error } = await client.from('client_projects').select('data').eq('client_id', CLIENT_ID);
+    if(error) throw error;
+    portalProjects = (data || []).map(r=>r.data).filter(p=>p.visibleToClient);
+    renderProjects();
+  }catch(err){
+    console.error(err);
+    if(wrap) wrap.innerHTML = '<p style="color:var(--slate); font-size:14px; padding:20px 0;">Could not load projects right now.</p>';
+  }
+}
+function renderProjects(){
+  const wrap = document.getElementById('projectsListWrap');
+  if(!wrap) return;
+  if(!portalProjects.length){
+    wrap.innerHTML = '<p style="color:var(--slate); font-size:14px; padding:20px 0;">No projects shared with you yet.</p>';
+    return;
+  }
+  wrap.innerHTML = portalProjects.map(p=>{
+    const tasks = p.projectTasks || [];
+    const done = tasks.filter(t=>t.status==='Done').length;
+    const total = tasks.length;
+    const pct = total ? Math.round((done/total)*100) : 0;
+    const statusColors = {Planning:'#6b7280', 'In Progress':'#0d9488', Review:'#f59e0b', Complete:'#10b981'};
+    const statusColor = statusColors[p.status] || '#6b7280';
+    return `
+    <div class="project-card" id="proj_${p.id}" style="background:var(--surface); border:1.5px solid var(--line); border-radius:12px; padding:20px 24px; margin-bottom:16px;">
+      <div style="display:flex; align-items:flex-start; justify-content:space-between; gap:16px; cursor:pointer;" onclick="toggleProjectTasks('${p.id}')">
+        <div style="flex:1;">
+          <div style="display:flex; align-items:center; gap:10px; margin-bottom:4px;">
+            <span style="font-size:16px; font-weight:700; color:var(--navy-deep);">${escHtml(p.name)}</span>
+            <span style="font-size:11px; font-weight:600; padding:3px 10px; border-radius:20px; background:${statusColor}22; color:${statusColor};">${p.status}</span>
+          </div>
+          ${p.description ? `<p style="font-size:13px; color:var(--slate); margin:0 0 10px;">${escHtml(p.description)}</p>` : ''}
+          <div style="display:flex; gap:16px; font-size:12px; color:var(--slate);">
+            ${p.startDate ? `<span>Started ${fmtDate(p.startDate)}</span>` : ''}
+            ${p.dueDate ? `<span>Due ${fmtDate(p.dueDate)}</span>` : ''}
+          </div>
+        </div>
+        <div style="text-align:right; min-width:80px;">
+          <div style="font-size:22px; font-weight:800; color:var(--navy-deep);">${pct}%</div>
+          <div style="font-size:11px; color:var(--slate);">${done} of ${total} tasks</div>
+        </div>
+      </div>
+      ${total ? `
+      <div style="margin-top:12px; background:var(--line); border-radius:4px; height:6px; overflow:hidden;">
+        <div style="width:${pct}%; height:100%; background:var(--teal); border-radius:4px; transition:width .4s;"></div>
+      </div>` : ''}
+      <div id="projTasks_${p.id}" style="display:none; margin-top:16px;">
+        ${tasks.length ? tasks.map(t=>{
+          const taskStatusColors = {'Not Started':'#6b7280', 'In Progress':'#0d9488', Done:'#10b981', Blocked:'#ef4444'};
+          const tColor = taskStatusColors[t.status] || '#6b7280';
+          return `
+          <div style="display:flex; align-items:center; gap:12px; padding:10px 0; border-bottom:1px solid var(--line);">
+            <div style="flex:1;">
+              <div style="font-size:14px; font-weight:600; color:var(--navy-deep); ${t.status==='Done'?'text-decoration:line-through; opacity:.6;':''}">${escHtml(t.title)}</div>
+              ${t.dueDate ? `<div style="font-size:11px; color:var(--slate);">Due ${fmtDate(t.dueDate)}</div>` : ''}
+            </div>
+            <span style="font-size:11px; font-weight:600; padding:3px 10px; border-radius:20px; background:${tColor}22; color:${tColor};">${t.status}</span>
+            <div style="display:flex; gap:6px;">
+              ${t.status!=='Done' ? `<button class="btn-ghost" style="font-size:12px; padding:4px 10px; color:#10b981; border-color:#10b981;" onclick="setTaskStatus('${p.id}','${t.id}','Done')">Done</button>` : ''}
+              ${t.status!=='Blocked' ? `<button class="btn-ghost" style="font-size:12px; padding:4px 10px; color:#ef4444; border-color:#ef4444;" onclick="setTaskStatus('${p.id}','${t.id}','Blocked')">Blocked</button>` : ''}
+            </div>
+          </div>`;
+        }).join('') : '<p style="font-size:13px; color:var(--slate); padding:8px 0;">No tasks added yet.</p>'}
+      </div>
+      ${tasks.length ? `<div style="margin-top:12px; text-align:center;"><button class="btn-ghost" style="font-size:12px;" onclick="toggleProjectTasks('${p.id}')">Show tasks</button></div>` : ''}
+    </div>`;
+  }).join('');
+}
+function toggleProjectTasks(projectId){
+  const el = document.getElementById('projTasks_'+projectId);
+  if(!el) return;
+  const card = el.closest('.project-card');
+  const btn = card ? card.querySelector('button[onclick^="toggleProjectTasks"]') : null;
+  if(el.style.display==='none'){
+    el.style.display='block';
+    if(btn) btn.textContent='Hide tasks';
+  } else {
+    el.style.display='none';
+    if(btn) btn.textContent='Show tasks';
+  }
+}
+async function setTaskStatus(projectId, taskId, newStatus){
+  const project = portalProjects.find(p=>p.id===projectId);
+  if(!project) return;
+  const task = (project.projectTasks||[]).find(t=>t.id===taskId);
+  if(!task) return;
+  task.status = newStatus;
+  renderProjects();
+  // re-open the task panel that was visible before re-render
+  const panel = document.getElementById('projTasks_'+projectId);
+  if(panel){
+    panel.style.display = 'block';
+    const btn = panel.closest('.project-card') && panel.closest('.project-card').querySelector('button[onclick^="toggleProjectTasks"]');
+    if(btn) btn.textContent = 'Hide tasks';
+  }
+  // persist back to Supabase
+  const client = getSupabaseClient();
+  if(!client || !CLIENT_ID) return;
+  try{
+    await client.from('client_projects').update({ data: project, updated_at: new Date().toISOString() }).eq('id', projectId).eq('client_id', CLIENT_ID);
+  }catch(err){ console.error('setTaskStatus sync failed', err); }
 }
 // Itemized, transparent -- each extra deliverable shows on its own with its own price. No
 // bundled percentage markup gets added anywhere; total is just the sum of what's listed.
@@ -975,7 +1086,7 @@ async function loadExtraDeliverablesBilling(){
     const total = rows.reduce((sum,r)=> sum + (Number(r.data.value)||0), 0);
     el.innerHTML = rows.map(r=>`
       <div style="display:flex; justify-content:space-between; padding:8px 0; border-bottom:1px solid var(--line);">
-        <div style="color:var(--ink);">${escHtml(r.data.title)}${r.data.note?` — <span style="color:var(--slate-soft);">${escHtml(r.data.note)}</span>`:''}</div>
+        <div style="color:var(--ink);">${escHtml(r.data.title)}${r.data.note?` - <span style="color:var(--slate-soft);">${escHtml(r.data.note)}</span>`:''}</div>
         <b>$${Number(r.data.value||0).toLocaleString()}</b>
       </div>`).join('') + `<div style="display:flex; justify-content:space-between; padding-top:10px; font-weight:700; color:var(--ink);"><span>Total extra this cycle</span><span>$${total.toLocaleString()}</span></div>`;
   }catch(err){
@@ -994,10 +1105,10 @@ function pickSlot(el){
 function confirmMeeting(){
   const selected = document.querySelector('.slot.selected');
   if(!selected){
-    alert('Pick a time slot first.');
+    showPortalToast('Pick a time slot first.', true);
     return;
   }
-  alert('Meeting request sent for '+selected.textContent.trim()+'. Your account team will confirm shortly.');
+  showPortalToast('Meeting request sent for '+selected.textContent.trim()+'. Your account team will confirm shortly.');
 }
 
 /* ===================== GLOSSARY ===================== */

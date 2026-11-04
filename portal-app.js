@@ -131,6 +131,23 @@ function getSupabaseClient(){
   supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY);
   return supabaseClient;
 }
+async function notifyAgency({ action, contentTitle, note }){
+  try{
+    const sb = getSupabaseClient();
+    if(!sb) return;
+    const { data: { session } } = await sb.auth.getSession().catch(()=>({ data:{ session:null } }));
+    if(!session) return;
+    const clientName = session.user?.user_metadata?.full_name || session.user?.email || '';
+    await fetch(`${SUPABASE_URL}/functions/v1/portal-notify`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': 'Bearer ' + session.access_token,
+      },
+      body: JSON.stringify({ action, contentTitle, clientName, note: note || '' }),
+    });
+  }catch(e){ console.error('notifyAgency failed', e); }
+}
 function showLoginError(msg){
   const el = document.getElementById('login-error');
   el.textContent = msg;
@@ -641,6 +658,7 @@ async function setContentStatus(status){
   badge.textContent = statusBadgeText(status);
   buildCalendar();
   renderDeliverables();
+  notifyAgency({ action: status, contentTitle: ci.title });
   setTimeout(()=>closeModal('content'), 500);
 }
 function setCalView(btn, mode){
@@ -695,6 +713,7 @@ async function setContentStatusById(id, status){
   await storageSet('favze-portal-content-items', contentItems);
   buildCalendar();
   renderDeliverables();
+  notifyAgency({ action: status, contentTitle: ci.title });
 }
 
 /* ===================== SUPPORT TICKETS ===================== */

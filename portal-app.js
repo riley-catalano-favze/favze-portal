@@ -594,6 +594,20 @@ function openContentModal(id){
     if(ci.caption){ capEl.textContent = '“' + ci.caption + '”'; capEl.style.display = ''; }
     else { capEl.textContent = ''; capEl.style.display = 'none'; }
   }
+  const pageStatusEl = document.getElementById('cd-page-status');
+  if(pageStatusEl){
+    if(ci.typeValue === 'website-page' && (ci.copywritingStatus || ci.designStatus || ci.pageUrl)){
+      pageStatusEl.style.display = '';
+      document.getElementById('cd-copy-status').textContent = ci.copywritingStatus || 'Not Started';
+      document.getElementById('cd-design-status').textContent = ci.designStatus || 'Not Started';
+      const urlWrap = document.getElementById('cd-page-url-wrap');
+      const urlEl = document.getElementById('cd-page-url');
+      if(ci.pageUrl){ urlWrap.style.display = ''; urlEl.textContent = ci.pageUrl; urlEl.href = ci.pageUrl.startsWith('http') ? ci.pageUrl : '#'; }
+      else { urlWrap.style.display = 'none'; }
+    } else {
+      pageStatusEl.style.display = 'none';
+    }
+  }
   const media = document.getElementById('cd-media');
   if(ci.imageUrls && ci.imageUrls.length){
     media.innerHTML = `<div class="review-carousel">${ci.imageUrls.filter(u=>isSafeHttpUrl(u)||isSafeDataUrl(u)).map(u=>`<img src="${escHtml(u)}" onclick="window.open('${escJs(u)}','_blank','noopener,noreferrer')" alt="Content photo">`).join('')}</div>`;
@@ -924,7 +938,14 @@ async function submitFeature(){
 
 /* ===================== INIT ===================== */
 async function initPortal(){
-  contentItems = await storageGet('favze-portal-content-items', defaultContentItems);
+  const rawContentItems = await storageGet('favze-portal-content-items', defaultContentItems);
+  // Only show items that are marked visible to client AND include this client's portal UID
+  // in assignedClients. Legacy items (no assignedClients) are shown if visibleToClient is true.
+  contentItems = rawContentItems.filter(ci=>{
+    if(!ci.visibleToClient) return false;
+    if(!ci.assignedClients || ci.assignedClients.length === 0) return true;
+    return CLIENT_ID && ci.assignedClients.includes(CLIENT_ID);
+  });
   ticketsData = await storageGet('favze-portal-tickets', defaultTickets);
   featuresData = await storageGet('favze-portal-features', defaultFeatures);
   const myId = getMyVoterId();

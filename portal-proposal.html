@@ -1,0 +1,235 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Proposal | Favze</title>
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>📋</text></svg>">
+<style>
+  :root {
+    --ink: #1a1f2e;
+    --slate: #64748b;
+    --line: #e2e8f0;
+    --paper: #f8fafc;
+    --bg: #ffffff;
+    --teal: #0f766e;
+    --teal-light: #ccfbf1;
+    --red: #dc2626;
+    --red-light: #fee2e2;
+    --radius: 10px;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: var(--paper); color: var(--ink); min-height: 100vh; }
+
+  .header { background: #04305f; padding: 16px 24px; display: flex; align-items: center; gap: 12px; }
+  .header svg { width: 28px; height: 28px; }
+  .header-brand { color: #fff; font-weight: 800; font-size: 18px; letter-spacing: -0.3px; }
+
+  .container { max-width: 760px; margin: 0 auto; padding: 32px 20px 60px; }
+
+  .state-loading, .state-error, .state-signed, .state-declined { text-align: center; padding: 60px 20px; }
+  .state-icon { font-size: 48px; margin-bottom: 16px; }
+  .state-title { font-size: 22px; font-weight: 700; margin-bottom: 8px; }
+  .state-sub { color: var(--slate); font-size: 15px; }
+
+  .proposal-meta { background: #04305f; color: #fff; border-radius: var(--radius); padding: 24px 28px; margin-bottom: 24px; }
+  .proposal-title { font-size: 22px; font-weight: 800; margin-bottom: 10px; }
+  .proposal-meta-row { display: flex; gap: 24px; flex-wrap: wrap; font-size: 13px; opacity: 0.85; }
+  .proposal-meta-row span { display: flex; align-items: center; gap: 5px; }
+
+  .proposal-body { background: var(--bg); border: 1px solid var(--line); border-radius: var(--radius); padding: 28px 32px; margin-bottom: 28px; line-height: 1.7; font-size: 15px; }
+  .proposal-body h1, .proposal-body h2, .proposal-body h3 { margin: 1.2em 0 0.5em; font-weight: 700; }
+  .proposal-body p { margin-bottom: 1em; }
+  .proposal-body ul, .proposal-body ol { margin: 0.5em 0 1em 1.5em; }
+  .proposal-body li { margin-bottom: 0.4em; }
+  .proposal-body table { border-collapse: collapse; width: 100%; margin: 1em 0; }
+  .proposal-body table th, .proposal-body table td { border: 1px solid var(--line); padding: 8px 12px; text-align: left; }
+  .proposal-body table th { background: var(--paper); font-weight: 600; }
+
+  .sign-box { background: var(--bg); border: 1px solid var(--line); border-radius: var(--radius); padding: 28px 32px; }
+  .sign-box h2 { font-size: 17px; font-weight: 700; margin-bottom: 6px; }
+  .sign-box p { color: var(--slate); font-size: 13.5px; margin-bottom: 20px; }
+  .sign-field { margin-bottom: 16px; }
+  .sign-field label { display: block; font-size: 12px; font-weight: 700; color: var(--slate); text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 6px; }
+  .sign-field input { width: 100%; padding: 11px 14px; border: 1.5px solid var(--line); border-radius: 8px; font-size: 15px; outline: none; transition: border-color 0.15s; }
+  .sign-field input:focus { border-color: #04305f; }
+  .sign-field input.sig-input { font-family: Georgia, 'Times New Roman', serif; font-size: 20px; font-style: italic; color: #04305f; }
+
+  .btn-sign { width: 100%; padding: 15px; background: var(--teal); color: #fff; border: none; border-radius: 9px; font-size: 15px; font-weight: 700; cursor: pointer; margin-top: 8px; transition: background 0.15s; }
+  .btn-sign:hover { background: #0d6660; }
+  .btn-sign:disabled { background: #94a3b8; cursor: not-allowed; }
+  .btn-decline { width: 100%; padding: 11px; background: none; color: var(--slate); border: 1.5px solid var(--line); border-radius: 9px; font-size: 14px; font-weight: 600; cursor: pointer; margin-top: 8px; transition: all 0.15s; }
+  .btn-decline:hover { border-color: var(--red); color: var(--red); }
+
+  .legal-note { font-size: 11.5px; color: var(--slate); margin-top: 16px; line-height: 1.5; text-align: center; }
+
+  @media(max-width:600px){
+    .proposal-body { padding: 20px 18px; }
+    .sign-box { padding: 20px 18px; }
+    .proposal-meta { padding: 18px 20px; }
+  }
+</style>
+</head>
+<body>
+<div class="header">
+  <svg viewBox="0 0 300 300" xmlns="http://www.w3.org/2000/svg"><rect width="300" height="300" fill="#04305f" rx="40"/><text x="50%" y="55%" dominant-baseline="middle" text-anchor="middle" fill="white" font-size="180" font-family="Arial">F</text></svg>
+  <span class="header-brand">Favze</span>
+</div>
+
+<div class="container">
+  <div id="app-state" class="state-loading">
+    <div class="state-icon">⏳</div>
+    <div class="state-title">Loading proposal...</div>
+  </div>
+</div>
+
+<script>
+const SUPABASE_URL = 'https://ozbhlqgytfyjdgkoyhkt.supabase.co';
+const SUPABASE_KEY = 'sb_publishable_35rPBJVeCiEETVdBP0dLlw_OmpU77Vd';
+
+function sbFetch(path, opts = {}){
+  return fetch(SUPABASE_URL + '/rest/v1/' + path, {
+    ...opts,
+    headers: {
+      'apikey': SUPABASE_KEY,
+      'Authorization': 'Bearer ' + SUPABASE_KEY,
+      'Content-Type': 'application/json',
+      'Prefer': opts.prefer || 'return=representation',
+      ...(opts.headers || {})
+    }
+  });
+}
+
+function esc(s){ return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+function fmtDate(iso){ if(!iso) return ''; const d = new Date(iso); return d.toLocaleDateString('en-US',{year:'numeric',month:'long',day:'numeric'}); }
+
+const params = new URLSearchParams(location.search);
+const proposalId = params.get('id');
+const app = document.getElementById('app-state');
+
+async function init(){
+  if(!proposalId){
+    showError('No proposal ID in this link. Check the link you received and try again.');
+    return;
+  }
+  try{
+    const res = await sbFetch(`proposals?id=eq.${proposalId}&select=id,title,prospect_name,prospect_email,body_html,status,signed_at,signed_name,created_at`);
+    if(!res.ok) throw new Error('fetch failed');
+    const rows = await res.json();
+    if(!rows.length){ showError('Proposal not found. It may have been deleted or the link may be incorrect.'); return; }
+    const p = rows[0];
+    if(p.status === 'signed'){ showSigned(p); return; }
+    if(p.status === 'declined'){ showDeclined(p); return; }
+    renderProposal(p);
+  }catch(e){
+    console.error(e);
+    showError('Could not load the proposal. Please try again or contact Favze Digital.');
+  }
+}
+
+function showError(msg){
+  app.innerHTML = `<div class="state-icon">⚠️</div><div class="state-title">Something went wrong</div><div class="state-sub">${esc(msg)}</div>`;
+}
+
+function showSigned(p){
+  app.innerHTML = `<div class="state-icon">✅</div><div class="state-title">Proposal already signed</div><div class="state-sub">This proposal was signed by <strong>${esc(p.signed_name||p.prospect_name)}</strong> on ${fmtDate(p.signed_at)}. No further action is needed.</div>`;
+}
+
+function showDeclined(p){
+  app.innerHTML = `<div class="state-icon">🚫</div><div class="state-title">Proposal declined</div><div class="state-sub">This proposal was previously declined. Please reach out to Favze Digital if you have questions.</div>`;
+}
+
+function renderProposal(p){
+  app.className = '';
+  app.innerHTML = `
+    <div class="proposal-meta">
+      <div class="proposal-title">${esc(p.title)}</div>
+      <div class="proposal-meta-row">
+        <span>📋 Prepared for ${esc(p.prospect_name)}</span>
+        <span>📅 ${fmtDate(p.created_at)}</span>
+      </div>
+    </div>
+    <div class="proposal-body" id="proposal-body">${p.body_html || '<p>No content provided.</p>'}</div>
+    <div class="sign-box">
+      <h2>Sign this proposal</h2>
+      <p>By signing, you confirm you have read and agree to the terms outlined above. This signature is legally binding.</p>
+      <div class="sign-field">
+        <label>Your full name</label>
+        <input type="text" id="sig-name" placeholder="${esc(p.prospect_name)}" autocomplete="name">
+      </div>
+      <div class="sign-field">
+        <label>Signature (type your name as your signature)</label>
+        <input type="text" id="sig-sig" class="sig-input" placeholder="Sign here...">
+      </div>
+      <div class="sign-field">
+        <label>Your email</label>
+        <input type="email" id="sig-email" value="${esc(p.prospect_email||'')}" placeholder="your@email.com">
+      </div>
+      <button class="btn-sign" id="btn-sign" onclick="submitSignature('${esc(p.id)}','${esc(p.prospect_name)}')">Sign and Accept Proposal</button>
+      <button class="btn-decline" onclick="declineProposal('${esc(p.id)}')">Decline this proposal</button>
+      <div class="legal-note">This electronic signature is legally binding under applicable e-signature laws. The signed timestamp and your identifying information are recorded securely.</div>
+    </div>
+  `;
+}
+
+async function submitSignature(id, prospectName){
+  const name = document.getElementById('sig-name').value.trim() || prospectName;
+  const sig = document.getElementById('sig-sig').value.trim();
+  const email = document.getElementById('sig-email').value.trim();
+  if(!sig){ alert('Please type your name as your signature.'); return; }
+  if(!email){ alert('Please enter your email address.'); return; }
+
+  const btn = document.getElementById('btn-sign');
+  btn.disabled = true;
+  btn.textContent = 'Saving...';
+
+  try{
+    const payload = {
+      status: 'signed',
+      signed_name: name,
+      signed_at: new Date().toISOString(),
+      signature_data: JSON.stringify({ typed_signature: sig, email, timestamp: new Date().toISOString(), user_agent: navigator.userAgent })
+    };
+    const res = await sbFetch(`proposals?id=eq.${id}`, {
+      method: 'PATCH',
+      prefer: 'return=minimal',
+      body: JSON.stringify(payload)
+    });
+    if(!res.ok) throw new Error('patch failed');
+
+    // Notify agency via edge function
+    try{
+      await fetch(SUPABASE_URL + '/functions/v1/portal-notify', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + SUPABASE_KEY },
+        body: JSON.stringify({ action: 'proposal-signed', prospectName: name, prospectEmail: email, proposalId: id })
+      });
+    }catch(notifyErr){ console.warn('Notify failed (non-fatal):', notifyErr); }
+
+    app.innerHTML = `
+      <div class="state-icon">🎉</div>
+      <div class="state-title">Proposal signed!</div>
+      <div class="state-sub">Thank you, <strong>${esc(name)}</strong>. We received your signature and will be in touch shortly to get started. Keep an eye on your inbox for next steps from the Favze team.</div>
+    `;
+  }catch(e){
+    console.error(e);
+    btn.disabled = false;
+    btn.textContent = 'Sign and Accept Proposal';
+    alert('Could not save your signature. Please try again or contact Favze Digital directly.');
+  }
+}
+
+async function declineProposal(id){
+  if(!confirm('Are you sure you want to decline this proposal?')) return;
+  try{
+    await sbFetch(`proposals?id=eq.${id}`, { method: 'PATCH', prefer: 'return=minimal', body: JSON.stringify({ status: 'declined' }) });
+    app.innerHTML = `<div class="state-icon">👋</div><div class="state-title">Proposal declined</div><div class="state-sub">We've recorded your decision. If you'd like to revisit or discuss options, reach out to us at any time.</div>`;
+  }catch(e){
+    alert('Could not update status. Please try again.');
+  }
+}
+
+init();
+</script>
+</body>
+</html>

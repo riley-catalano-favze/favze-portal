@@ -1009,6 +1009,7 @@ async function initPortal(){
   loadPortalProjects();
   loadBillingData();
   loadReferralData();
+  loadPortalBrandAssets();
   checkSatisfactionPulse();
   try{ const a = JSON.parse(sessionStorage.getItem(PORTAL_AFTER_KEY)||'null'); sessionStorage.removeItem(PORTAL_AFTER_KEY); runPortalAfter(a); }catch(e){}
 }
@@ -1040,6 +1041,162 @@ async function loadBillingData(){
     const rewardEl = document.getElementById('referral-reward-type');
     if(rewardEl && reward) rewardEl.textContent = reward;
   }catch(e){ console.error('loadBillingData failed', e); }
+
+  // Load individual invoices from invoices table
+  loadInvoicesList();
+}
+
+async function loadInvoicesList(){
+  const wrap = document.getElementById('invoices-list-wrap');
+  if(!wrap || !CLIENT_ID) return;
+  const client = getSupabaseClient();
+  if(!client) return;
+  try{
+    const { data, error } = await client.from('invoices').select('*').eq('client_id', CLIENT_ID).order('created_at',{ascending:false});
+    if(error) throw error;
+    const rows = data || [];
+    if(!rows.length){ wrap.innerHTML = '<div style="font-size:13px;color:var(--slate-soft);padding:4px 0;">No invoices yet.</div>'; return; }
+    const statusColor = s => s==='paid'?'#276749':s==='overdue'?'#9b2c2c':s==='cancelled'?'#718096':'#92400e';
+    const statusBg   = s => s==='paid'?'#c6f6d5':s==='overdue'?'#fed7d7':s==='cancelled'?'#edf2f7':'#fef3c7';
+    wrap.innerHTML = rows.map(inv=>`
+      <div style="border:1px solid var(--line,#e2e8f0);border-radius:10px;padding:14px 18px;margin-bottom:10px;background:#fff;">
+        <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:10px;flex-wrap:wrap;">
+          <div>
+            ${inv.invoice_number?`<div style="font-size:11.5px;color:var(--slate);margin-bottom:2px;">${escHtml(inv.invoice_number)}</div>`:''}
+            <div style="font-weight:700;font-size:15px;">${escHtml(inv.description||'Invoice')}</div>
+            <div style="font-size:13px;color:var(--slate);margin-top:3px;">${inv.due_date?'Due '+fmtPortalDate(inv.due_date):''}</div>
+          </div>
+          <div style="text-align:right;">
+            <div style="font-size:18px;font-weight:800;">${inv.amount!=null?'$'+Number(inv.amount).toFixed(2):''}</div>
+            <span style="background:${statusBg(inv.status)};color:${statusColor(inv.status)};border-radius:4px;padding:2px 8px;font-size:11.5px;font-weight:700;">${inv.status}</span>
+          </div>
+        </div>
+        ${inv.payment_link && inv.status!=='paid' && inv.status!=='cancelled' ? `
+        <div style="margin-top:12px;">
+          <a href="${escHtml(inv.payment_link)}" target="_blank" rel="noopener noreferrer"
+            style="display:inline-block;background:#04305f;color:#fff;padding:9px 20px;border-radius:7px;text-decoration:none;font-weight:700;font-size:14px;">
+            Pay Now
+          </a>
+          <span style="font-size:11.5px;color:var(--slate);margin-left:10px;">Secure checkout via Stripe</span>
+        </div>` : ''}
+      </div>`).join('');
+  }catch(e){ console.error('loadInvoicesList failed', e); }
+}
+
+function fmtPortalDate(iso){
+  if(!iso) return '';
+  const d = new Date(iso+'T00:00:00');
+  return d.toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'});
+}
+
+/* ===================== BRAND ASSETS (CLIENT UPLOAD) ===================== */
+const ASSET_TYPE_EMOJI = {
+  'image/png':'🖼️','image/jpeg':'🖼️','image/jpg':'🖼️','image/svg+xml':'🖼️',
+  'image/webp':'🖼️','image/gif':'🖼️','application/pdf':'📄',
+  'font/ttf':'🔤','font/otf':'🔤','font/woff':'🔤','font/woff2':'🔤',
+  'application/x-font-ttf':'🔤','application/x-font-otf':'🔤',
+  'application/font-woff':'🔤','application/font-woff2':'🔤',
+  'application/zip':'📦','application/x-zip-compressed':'📦'
+};
+function assetEmoji(mime){ return ASSET_TYPE_EMOJI[mime] || '📎'; }
+function formatFileSize(bytes){
+  if(!bytes) return '';
+  if(bytes < 1024) return bytes + ' B';
+  if(bytes < 1048576) return (bytes/1024).toFixed(1) + ' KB';
+  return (bytes/1048576).toFixed(1) + ' MB';
+}
+
+async function loadPortalBrandAssets(){
+  const grid = document.getElementById('assets-grid');
+  if(!grid || !CLIENT_ID) return;
+  const client = getSupabaseClient();
+  if(!client) return;
+  try{
+    const { data, error } = await client.from('brand_assets').select('*').eq('client_id', CLIENT_ID).order('uploaded_at',{ascending:false});
+    if(error) throw error;
+    const rows = data || [];
+    if(!rows.length){
+      grid.innerHTML = '<div style="font-size:13px;color:var(--slate-soft);padding:4px 0;">No files uploaded yet. Add your logos, fonts, and brand photos above.</div>';
+      return;
+    }
+    grid.innerHTML = `<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:12px;">` +
+      rows.map(a=>`
+        <div style="border:1px solid var(--line,#e2e8f0);border-radius:10px;padding:14px;background:#fff;display:flex;flex-direction:column;gap:8px;">
+          <div style="font-size:28px;">${assetEmoji(a.file_type)}</div>
+          <div style="font-weight:600;font-size:13.5px;word-break:break-all;line-height:1.4;">${escHtml(a.file_name)}</div>
+          <div style="font-size:12px;color:var(--slate);">${formatFileSize(a.file_size_bytes)} &middot; ${fmtPortalDate((a.uploaded_at||'').slice(0,10))}</div>
+          <div style="display:flex;gap:8px;margin-top:4px;">
+            <button class="btn btn-sm" onclick="downloadPortalAsset('${escHtml(a.file_path)}','${escHtml(a.file_name)}')" style="font-size:12px;padding:5px 12px;">Download</button>
+            <button class="btn btn-sm" onclick="deletePortalAsset('${escHtml(a.id)}','${escHtml(a.file_path)}')" style="font-size:12px;padding:5px 12px;color:#dc2626;border-color:#dc2626;">Delete</button>
+          </div>
+        </div>`).join('') +
+      `</div>`;
+  }catch(e){ console.error('loadPortalBrandAssets failed', e); grid.innerHTML = '<div style="font-size:13px;color:var(--slate-soft);">Could not load files.</div>'; }
+}
+
+async function handleAssetUpload(input){
+  const file = input.files && input.files[0];
+  if(!file) return;
+  if(file.size > 20 * 1024 * 1024){ alert('File exceeds the 20MB limit. Please choose a smaller file.'); input.value = ''; return; }
+  const client = getSupabaseClient();
+  if(!client || !CLIENT_ID) return;
+  const progressWrap = document.getElementById('upload-progress');
+  const statusEl = document.getElementById('upload-status');
+  const bar = document.getElementById('upload-bar');
+  if(progressWrap){ progressWrap.style.display = 'block'; }
+  if(statusEl){ statusEl.textContent = 'Uploading ' + file.name + '...'; }
+  if(bar){ bar.style.width = '30%'; }
+  try{
+    const safeName = file.name.replace(/[^a-zA-Z0-9._-]/g, '_');
+    const path = `${CLIENT_ID}/${Date.now()}_${safeName}`;
+    const { error: upErr } = await client.storage.from('brand-assets').upload(path, file, { contentType: file.type, upsert: false });
+    if(upErr) throw upErr;
+    if(bar){ bar.style.width = '70%'; }
+    const { error: dbErr } = await client.from('brand_assets').insert({
+      client_id: CLIENT_ID,
+      file_name: file.name,
+      file_path: path,
+      file_type: file.type,
+      file_size_bytes: file.size
+    });
+    if(dbErr) throw dbErr;
+    if(bar){ bar.style.width = '100%'; }
+    if(statusEl){ statusEl.textContent = 'Upload complete!'; }
+    setTimeout(()=>{ if(progressWrap){ progressWrap.style.display = 'none'; bar.style.width = '0%'; } }, 1800);
+    input.value = '';
+    loadPortalBrandAssets();
+  }catch(e){
+    console.error('handleAssetUpload failed', e);
+    if(statusEl){ statusEl.textContent = 'Upload failed. Please try again.'; }
+    if(bar){ bar.style.width = '0%'; }
+    input.value = '';
+  }
+}
+
+async function downloadPortalAsset(filePath, fileName){
+  const client = getSupabaseClient();
+  if(!client) return;
+  try{
+    const { data, error } = await client.storage.from('brand-assets').download(filePath);
+    if(error) throw error;
+    const url = URL.createObjectURL(data);
+    const a = document.createElement('a');
+    a.href = url; a.download = fileName;
+    document.body.appendChild(a); a.click();
+    document.body.removeChild(a);
+    setTimeout(()=> URL.revokeObjectURL(url), 5000);
+  }catch(e){ console.error('downloadPortalAsset failed', e); alert('Could not download the file. Please try again.'); }
+}
+
+async function deletePortalAsset(assetId, filePath){
+  if(!confirm('Delete this file? This cannot be undone.')) return;
+  const client = getSupabaseClient();
+  if(!client) return;
+  try{
+    await client.storage.from('brand-assets').remove([filePath]);
+    await client.from('brand_assets').delete().eq('id', assetId);
+    loadPortalBrandAssets();
+  }catch(e){ console.error('deletePortalAsset failed', e); alert('Could not delete the file. Please try again.'); }
 }
 
 /* ===================== REFERRAL TRACKER ===================== */

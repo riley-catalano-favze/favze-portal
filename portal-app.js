@@ -143,18 +143,21 @@ function setLoginMode(mode){
   document.getElementById('login-success').style.display = 'none';
   const signinTab = document.getElementById('login-tab-signin');
   const signupTab = document.getElementById('login-tab-signup');
+  const fpBtn = document.getElementById('forgot-pw-btn');
   if(mode==='signin'){
     signinTab.style.background = '#fff'; signinTab.style.boxShadow = '0 1px 2px rgba(0,0,0,.08)'; signinTab.style.color = 'var(--navy-deep)';
     signupTab.style.background = 'transparent'; signupTab.style.boxShadow = 'none'; signupTab.style.color = 'var(--slate)';
     document.getElementById('login-subtext').textContent = 'Sign in with the email and password your account manager gave you.';
     document.getElementById('login-btn').textContent = 'Sign In';
-    document.getElementById('login-footnote').textContent = "Don't have login details yet? Reach out to your account manager.";
+    document.getElementById('login-footnote').innerHTML = "Don't have login details yet? <a href=\"mailto:riley@favze.com\" style=\"color:var(--navy);\">Reach out to your account manager.</a>";
+    if(fpBtn) fpBtn.style.display = '';
   } else {
     signupTab.style.background = '#fff'; signupTab.style.boxShadow = '0 1px 2px rgba(0,0,0,.08)'; signupTab.style.color = 'var(--navy-deep)';
     signinTab.style.background = 'transparent'; signinTab.style.boxShadow = 'none'; signinTab.style.color = 'var(--slate)';
     document.getElementById('login-subtext').textContent = 'Create your account with a work email and a password.';
     document.getElementById('login-btn').textContent = 'Sign Up';
     document.getElementById('login-footnote').textContent = 'Already have an account? Switch to Sign In above.';
+    if(fpBtn) fpBtn.style.display = 'none';
   }
 }
 function handleLoginSubmit(){
@@ -264,7 +267,89 @@ async function onSignedIn(session){
   document.getElementById('portalShell').style.display = '';
   await initPortal();
 }
+/* ===================== PASSWORD RESET =====================
+   Supabase sends reset links with a ?code= query param (PKCE flow).
+   We detect that before showing the login screen, display a loading
+   placeholder, then swap in the reset form once PASSWORD_RECOVERY fires. */
+function portalShowLoginError(msg){
+  const el = document.getElementById('login-error');
+  if(el){ el.textContent = msg; el.style.display = 'block'; }
+}
+async function portalSendPasswordReset(){
+  const email = (document.getElementById('login-email')||{}).value?.trim();
+  const btn = document.getElementById('forgot-pw-btn');
+  const successEl = document.getElementById('login-success');
+  const errEl = document.getElementById('login-error');
+  if(!email){ portalShowLoginError('Enter your email address above, then click Forgot password?.'); return; }
+  const client = getSupabaseClient();
+  if(!client){ portalShowLoginError('Could not reach the login service. Check your connection.'); return; }
+  if(btn) btn.disabled = true;
+  try{
+    const { error } = await client.auth.resetPasswordForEmail(email, { redirectTo: window.location.href.split('?')[0].split('#')[0] });
+    if(errEl) errEl.style.display = 'none';
+    if(successEl){ successEl.textContent = error ? (error.message||'Could not send reset email.') : 'Reset link sent. Check your inbox.'; successEl.style.display = 'block'; }
+  }catch(e){ portalShowLoginError('Could not send reset email. Try again.'); }
+  finally{ if(btn) btn.disabled = false; }
+}
+async function portalSubmitPasswordReset(){
+  const btn = document.getElementById('portal-reset-btn');
+  const msgEl = document.getElementById('portal-reset-msg');
+  const pw = (document.getElementById('portal-reset-pw')||{}).value||'';
+  if(pw.length < 12){ if(msgEl) msgEl.textContent = 'Use at least 12 characters.'; return; }
+  const client = getSupabaseClient();
+  if(!client) return;
+  if(btn) btn.disabled = true;
+  try{
+    const { error } = await client.auth.updateUser({ password: pw });
+    if(error){ if(msgEl) msgEl.textContent = error.message || 'Could not update password.'; return; }
+    const ls = document.getElementById('login-success');
+    if(ls){ ls.textContent = 'Password updated. Sign in with your new password.'; ls.style.display = 'block'; }
+    document.getElementById('loginScreen').classList.add('open');
+    document.getElementById('portal-reset-wrap').style.display = 'none';
+  }catch(e){ if(msgEl) msgEl.textContent = 'Could not update password. Try again.'; }
+  finally{ if(btn) btn.disabled = false; }
+}
+const _portalIsRecoveryLink = (function handlePortalPasswordReset(){
+  const search = window.location.search;
+  const hash = window.location.hash;
+  const sp = new URLSearchParams(search);
+  const hp = new URLSearchParams(hash.replace(/^#/, ''));
+  const codeVal = sp.get('code');
+  const isRecovery = hp.get('type') === 'recovery' || sp.get('type') === 'recovery' || (typeof codeVal === 'string' && codeVal.length > 10);
+  if(!isRecovery) return false;
+  const client = getSupabaseClient();
+  if(!client) return false;
+  // Show a loading placeholder synchronously so the login form never flashes
+  const ls = document.getElementById('loginScreen');
+  if(ls) ls.classList.add('open');
+  const wrap = document.getElementById('login-card-inner') || document.getElementById('loginScreen');
+  if(wrap){
+    const resetWrap = document.createElement('div');
+    resetWrap.id = 'portal-reset-wrap';
+    resetWrap.style.cssText = 'padding:24px;';
+    resetWrap.innerHTML = '<p style="font-size:14px;color:#04305f;text-align:center;">Loading reset form…</p>';
+    wrap.appendChild(resetWrap);
+  }
+  client.auth.onAuthStateChange((event) => {
+    if(event === 'PASSWORD_RECOVERY'){
+      const rw = document.getElementById('portal-reset-wrap');
+      if(rw){
+        rw.innerHTML = `
+          <p style="font-size:15px;font-weight:700;color:#04305f;margin:0 0 6px;">Set a new password</p>
+          <p style="font-size:13px;color:#5b6b80;margin-bottom:16px;">Choose a strong password with at least 12 characters.</p>
+          <div style="text-align:left;margin-bottom:12px;">
+            <label style="font-size:11.5px;font-weight:700;color:#04305f;">New Password</label>
+            <input id="portal-reset-pw" type="password" autocomplete="new-password" placeholder="&bull;&bull;&bull;&bull;&bull;&bull;&bull;&bull;" onkeydown="if(event.key==='Enter')portalSubmitPasswordReset()" style="width:100%;margin-top:4px;padding:10px 12px;border:1px solid #d5dce6;border-radius:9px;font-size:14px;box-sizing:border-box;">
+          </div>
+          <div id="portal-reset-msg" style="font-size:12.5px;margin-bottom:12px;min-height:16px;color:#b42318;"></div>
+          <button id="portal-reset-btn" type="button" onclick="portalSubmitPasswordReset()" style="width:100%;padding:12px;border:none;border-radius:9px;background:#04305f;color:#fff;font-weight:700;font-size:14px;cursor:pointer;">Set Password</button>`;
+      }
+    }
+  });
+  return true;
+})();
 async function checkExistingSession(){
+  if(_portalIsRecoveryLink) return; // let the reset handler take over
   const client = getSupabaseClient();
   if(!client){ return; }
   const { data } = await client.auth.getSession();
@@ -284,7 +369,7 @@ const STORAGE_KEY_TO_TABLE = {
    fallback if Supabase is unreachable (offline, or misconfigured), so the portal still works. */
 async function storageGet(key, fallback){
   const table = STORAGE_KEY_TO_TABLE[key];
-  if(table){
+  if(table && CLIENT_ID){
     try{
       const client = getSupabaseClient();
       if(client){
@@ -301,14 +386,23 @@ async function storageGet(key, fallback){
 }
 async function storageSet(key, value){
   const table = STORAGE_KEY_TO_TABLE[key];
-  if(table){
+  if(table && CLIENT_ID){
     try{
       const client = getSupabaseClient();
       if(client){
-        const rows = value.map(item=>({ id: String(item.id), client_id: CLIENT_ID, data: item, updated_at: new Date().toISOString() }));
-        if(rows.length){
+        if(value.length === 0){
+          // All items removed -- delete every row for this client so other devices
+          // don't see stale data on next load.
+          const { error } = await client.from(table).delete().eq('client_id', CLIENT_ID);
+          if(error) console.error('Supabase delete-all failed', error);
+        } else {
+          const rows = value.map(item=>({ id: String(item.id), client_id: CLIENT_ID, data: item, updated_at: new Date().toISOString() }));
           const { error } = await client.from(table).upsert(rows);
           if(error) console.error('Supabase save failed', error);
+          // Remove any rows whose ids are no longer in the current value array
+          // (handles single-item deletions without clearing everything).
+          const currentIds = rows.map(r=>r.id);
+          await client.from(table).delete().eq('client_id', CLIENT_ID).not('id', 'in', `(${currentIds.map(id=>`"${id}"`).join(',')})`);
         }
       }
     }catch(e){ console.error('Supabase save failed, falling back to local storage', e); }
@@ -492,7 +586,12 @@ function openContentModal(id){
   if(!ci) return;
   document.getElementById('cd-type').textContent = ci.type;
   document.getElementById('cd-title').textContent = ci.title;
-  document.getElementById('cd-desc').textContent = ci.desc;
+  document.getElementById('cd-desc').textContent = ci.desc || '';
+  const capEl = document.getElementById('cd-caption');
+  if(capEl){
+    if(ci.caption){ capEl.textContent = '“' + ci.caption + '”'; capEl.style.display = ''; }
+    else { capEl.textContent = ''; capEl.style.display = 'none'; }
+  }
   const media = document.getElementById('cd-media');
   if(ci.imageUrls && ci.imageUrls.length){
     media.innerHTML = `<div class="review-carousel">${ci.imageUrls.filter(u=>isSafeHttpUrl(u)||isSafeDataUrl(u)).map(u=>`<img src="${escHtml(u)}" onclick="window.open('${escJs(u)}','_blank','noopener,noreferrer')" alt="Content photo">`).join('')}</div>`;

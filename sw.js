@@ -1,36 +1,35 @@
-// Favze Portal Service Worker
-// Enables PWA installation. The portal syncs to Supabase, so we keep the SW
-// minimal — just enough to satisfy the installability criteria.
-
-const CACHE_NAME = 'favze-portal-v1';
-
-// Only cache the bare minimum needed for a splash/offline fallback
-const PRECACHE = [
-  '/',
-  '/portal-dashboard.html',
-  '/manifest.json',
-];
-
-self.addEventListener('install', event => {
+// Favze Portal Service Worker - Push Notifications
+self.addEventListener('install', function(e) {
   self.skipWaiting();
-  event.waitUntil(
-    caches.open(CACHE_NAME).then(cache => cache.addAll(PRECACHE).catch(() => {}))
-  );
 });
 
-self.addEventListener('activate', event => {
-  event.waitUntil(
-    caches.keys().then(keys =>
-      Promise.all(keys.filter(k => k !== CACHE_NAME).map(k => caches.delete(k)))
-    ).then(() => self.clients.claim())
-  );
+self.addEventListener('activate', function(e) {
+  e.waitUntil(clients.claim());
 });
 
-self.addEventListener('fetch', event => {
-  // Network first — always serve fresh content when online
-  event.respondWith(
-    fetch(event.request).catch(() =>
-      caches.match(event.request).then(r => r || caches.match('/portal-dashboard.html'))
-    )
-  );
+self.addEventListener('push', function(e) {
+  var data = {};
+  try { data = e.data ? e.data.json() : {}; } catch(err) { data = { title: 'Favze', body: e.data ? e.data.text() : '' }; }
+
+  var title = data.title || 'Favze';
+  var options = {
+    body: data.body || '',
+    icon: '/favicon.ico',
+    badge: '/favicon.ico',
+    data: { url: data.url || 'https://portal.favze.com' },
+    requireInteraction: false,
+  };
+
+  e.waitUntil(self.registration.showNotification(title, options));
+});
+
+self.addEventListener('notificationclick', function(e) {
+  e.notification.close();
+  var url = (e.notification.data && e.notification.data.url) || 'https://portal.favze.com';
+  e.waitUntil(clients.matchAll({ type: 'window', includeUncontrolled: true }).then(function(list) {
+    for (var i = 0; i < list.length; i++) {
+      if (list[i].url === url && 'focus' in list[i]) return list[i].focus();
+    }
+    if (clients.openWindow) return clients.openWindow(url);
+  }));
 });

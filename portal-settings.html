@@ -476,7 +476,7 @@ document.addEventListener('DOMContentLoaded', function() {
 /* =========================================================
    PUSH NOTIFICATIONS
    ========================================================= */
-var VAPID_PUBLIC_KEY = window.FAVZE_VAPID_PUBLIC_KEY || '';
+var VAPID_PUBLIC_KEY = window.FAVZE_VAPID_PUBLIC_KEY || 'BF7fo5XSYg4NOhgrn20f_HvlCpBpQY4wjfTLnSgR_ztWwNh52ruWqaX_hzLzx7_zjSyZK70YIyBeEz4WimP0IpM';
 
 function urlBase64ToUint8Array(base64String) {
   var padding = '='.repeat((4 - base64String.length % 4) % 4);
@@ -529,18 +529,21 @@ async function togglePushSubscription() {
   btn.disabled = false;
 }
 
-async function saveSubscription(subJson) {
+async function saveSubscription(subJson, action) {
   try {
-    var sb = window.supabase && window.supabase.createClient
-      ? window.supabase.createClient('https://ozbhlqgytfyjdgkoyhkt.supabase.co', 'sb_publishable_35rPBJVeCiEETVdBP0dLlw_OmpU77Vd')
-      : null;
-    if (!sb) return;
-    var { data: { session } } = await sb.auth.getSession().catch(function(){ return { data: { session: null } }; });
-    if (!session) return;
+    var token = window._favzeAccessToken || '';
+    if (!token) {
+      var sb = window._favzeSupabase || null;
+      if (sb) {
+        var sess = await sb.auth.getSession().catch(function(){ return { data: { session: null } }; });
+        token = (sess.data && sess.data.session) ? sess.data.session.access_token : '';
+      }
+    }
+    if (!token) return;
     await fetch('https://ozbhlqgytfyjdgkoyhkt.supabase.co/functions/v1/portal-push-sub', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + session.access_token },
-      body: JSON.stringify({ subscription: subJson }),
+      headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + token },
+      body: JSON.stringify({ action: action || (subJson ? 'subscribe' : 'unsubscribe'), subscription: subJson }),
     });
   } catch(e) { console.error('saveSubscription failed', e); }
 }

@@ -153,6 +153,37 @@ function notifPrefForAction(action){
   if(a === 'report-ready') return 'report';
   return null;
 }
+function pushLabelForAction(action){
+  if(action==='comment') return { title:'New Comment', msg:'You left a comment on content.' };
+  if(action==='approved') return { title:'Content Approved', msg:'You approved a content item.' };
+  if(action==='rejected') return { title:'Content Revision Requested', msg:'You requested a revision.' };
+  if(action==='new-ticket') return { title:'New Support Ticket', msg:'A support ticket was submitted.' };
+  if(action==='ticket-reply') return { title:'Ticket Reply', msg:'You replied to a support ticket.' };
+  if(action==='satisfaction') return { title:'Pulse Submitted', msg:'Your feedback was sent.' };
+  if(action==='photo-download') return { title:'Photo Downloaded', msg:'A photo was downloaded from the portal.' };
+  if(action==='proposal-signed') return { title:'Proposal Signed', msg:'You signed a proposal.' };
+  return { title:'Favze Update', msg:'Your portal has a new update.' };
+}
+
+async function sendPushToAgency(action, session){
+  try{
+    var label = pushLabelForAction(action);
+    await fetch(SUPABASE_URL + '/functions/v1/portal-push-send', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': 'Bearer ' + session.access_token,
+      },
+      body: JSON.stringify({
+        target: 'agency',
+        title: label.title,
+        message: label.msg,
+        url: 'https://portal.favze.com',
+      }),
+    });
+  }catch(e){ console.error('sendPushToAgency failed', e); }
+}
+
 async function notifyAgency({ action, contentTitle, note, ticketSubject, ticketCategory }){
   try{
     var prefKey = notifPrefForAction(action);
@@ -165,14 +196,17 @@ async function notifyAgency({ action, contentTitle, note, ticketSubject, ticketC
     const { data: { session } } = await sb.auth.getSession().catch(()=>({ data:{ session:null } }));
     if(!session) return;
     const clientName = session.user?.user_metadata?.full_name || session.user?.email || '';
-    await fetch(`${SUPABASE_URL}/functions/v1/portal-notify`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': 'Bearer ' + session.access_token,
-      },
-      body: JSON.stringify({ action, contentTitle, clientName, note: note || '', ticketSubject, ticketCategory }),
-    });
+    await Promise.allSettled([
+      fetch(`${SUPABASE_URL}/functions/v1/portal-notify`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': 'Bearer ' + session.access_token,
+        },
+        body: JSON.stringify({ action, contentTitle, clientName, note: note || '', ticketSubject, ticketCategory }),
+      }),
+      sendPushToAgency(action, session),
+    ]);
   }catch(e){ console.error('notifyAgency failed', e); }
 }
 async function downloadContentPhoto(url, contentId, contentTitle, photoNum){
@@ -297,6 +331,8 @@ async function portalSignOut(){
   const client = getSupabaseClient();
   if(client) await client.auth.signOut();
   CLIENT_ID = null;
+  window._favzeAccessToken = null;
+  window._favzeSupabase = null;
   document.getElementById('portalShell').style.display = 'none';
   document.getElementById('pendingScreen').classList.remove('open');
   document.getElementById('loginScreen').classList.add('open');
@@ -319,6 +355,8 @@ async function ensureAccountRequest(role){
 async function onSignedIn(session){
   CLIENT_ID = session.user.id;
   window._favzeUid = session.user.id;
+  window._favzeAccessToken = session.access_token;
+  window._favzeSupabase = getSupabaseClient();
   currentSessionEmail = session.user.email || 'Client Contact';
   document.getElementById('acct-email').textContent = currentSessionEmail;
   document.getElementById('acct-avatar').textContent = currentSessionEmail.slice(0,2).toUpperCase();

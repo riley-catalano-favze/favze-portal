@@ -5,7 +5,7 @@
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="apple-mobile-web-app-title" content="Favze Portal">
-<link rel="apple-touch-icon" href="icon-192.png"><title>Favze Portal</title><meta http-equiv="refresh" content="0; url=portal-dashboard.html"><script>location.replace("portal-dashboard.html");</script></head><body><script>
+<link rel="apple-touch-icon" href="icon-192.png"><title>Favze Portal</title><script>location.replace("portal-dashboard.html"+location.search+location.hash);</script><noscript><meta http-equiv="refresh" content="0; url=portal-dashboard.html"></noscript></head><body><script>
 if ("serviceWorker" in navigator) {
   navigator.serviceWorker.register("./sw.js").catch(function(){});
 }

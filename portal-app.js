@@ -297,6 +297,7 @@ async function portalSignIn(){
   }
 }
 async function portalSignUp(){
+  showLoginError('Accounts are invite only. Check your email for your Favze invitation, or reach out to your account manager.'); return;
   const email = document.getElementById('login-email').value.trim();
   const password = document.getElementById('login-password').value;
   const btn = document.getElementById('login-btn');
@@ -414,13 +415,15 @@ async function portalSubmitPasswordReset(){
   }catch(e){ if(msgEl) msgEl.textContent = 'Could not update password. Try again.'; }
   finally{ if(btn) btn.disabled = false; }
 }
+document.addEventListener('DOMContentLoaded', function(){ var t=document.getElementById('login-tab-signup'); if(t && t.parentElement) t.parentElement.style.display='none'; });
 const _portalIsRecoveryLink = (function handlePortalPasswordReset(){
   const search = window.location.search;
   const hash = window.location.hash;
   const sp = new URLSearchParams(search);
   const hp = new URLSearchParams(hash.replace(/^#/, ''));
   const codeVal = sp.get('code');
-  const isRecovery = hp.get('type') === 'recovery' || sp.get('type') === 'recovery' || (typeof codeVal === 'string' && codeVal.length > 10);
+  const isInvite = hp.get('type') === 'invite' || sp.get('type') === 'invite';
+  const isRecovery = isInvite || hp.get('type') === 'recovery' || sp.get('type') === 'recovery' || (typeof codeVal === 'string' && codeVal.length > 10);
   if(!isRecovery) return false;
   const client = getSupabaseClient();
   if(!client) return false;
@@ -438,11 +441,11 @@ const _portalIsRecoveryLink = (function handlePortalPasswordReset(){
     wrap.appendChild(resetWrap);
   }
   client.auth.onAuthStateChange((event) => {
-    if(event === 'PASSWORD_RECOVERY'){
+    if(event === 'PASSWORD_RECOVERY' || (isInvite && (event === 'SIGNED_IN' || event === 'INITIAL_SESSION'))){
       const rw = document.getElementById('portal-reset-wrap');
       if(rw){
         rw.innerHTML = `
-          <p style="font-size:15px;font-weight:700;color:#04305f;margin:0 0 6px;">Set a new password</p>
+          <p style="font-size:15px;font-weight:700;color:#04305f;margin:0 0 6px;">${isInvite?'Create your password':'Set a new password'}</p>
           <p style="font-size:13px;color:#5b6b80;margin-bottom:16px;">Choose a strong password with at least 12 characters.</p>
           <div style="text-align:left;margin-bottom:12px;">
             <label style="font-size:11.5px;font-weight:700;color:#04305f;">New Password</label>

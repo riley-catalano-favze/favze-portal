@@ -391,7 +391,7 @@ async function portalSendPasswordReset(){
   if(!client){ portalShowLoginError('Could not reach the login service. Check your connection.'); return; }
   if(btn) btn.disabled = true;
   try{
-    const { error } = await client.auth.resetPasswordForEmail(email, { redirectTo: window.location.href.split('?')[0].split('#')[0] });
+    const { error } = await client.auth.resetPasswordForEmail(email, { redirectTo: /\.favze\.com$/.test(window.location.hostname) ? 'https://portal.favze.com/' : window.location.href.split('?')[0].split('#')[0] });
     if(errEl) errEl.style.display = 'none';
     if(successEl){ successEl.textContent = error ? (error.message||'Could not send reset email.') : 'Reset link sent. Check your inbox.'; successEl.style.display = 'block'; }
   }catch(e){ portalShowLoginError('Could not send reset email. Try again.'); }
@@ -440,6 +440,17 @@ const _portalIsRecoveryLink = (function handlePortalPasswordReset(){
     resetWrap.innerHTML = '<p style="font-size:14px;color:#04305f;">Loading reset form…</p>';
     wrap.appendChild(resetWrap);
   }
+  // Safety net: a reset or invite link that lands on the wrong app is forwarded to the right one.
+  client.auth.onAuthStateChange((event, session) => {
+    if(!(event === 'PASSWORD_RECOVERY' || (isInvite && (event === 'SIGNED_IN' || event === 'INITIAL_SESSION')))) return;
+    if(!/\.favze\.com$/.test(window.location.hostname) || !session || !session.user) return;
+    setTimeout(async () => {
+      try{
+        const { data } = await client.from('account_requests').select('role').eq('user_id', session.user.id).maybeSingle();
+        if(data && data.role === 'agency') window.location.replace('https://crm.favze.com/' + search + hash);
+      }catch(_){}
+    }, 0);
+  });
   client.auth.onAuthStateChange((event) => {
     if(event === 'PASSWORD_RECOVERY' || (isInvite && (event === 'SIGNED_IN' || event === 'INITIAL_SESSION'))){
       const rw = document.getElementById('portal-reset-wrap');
